@@ -1,5 +1,5 @@
 {
-  "name": "@refokus-agency/package-typescript-tmp",
+  "name": "@refokus-agency/typescript-package-tmp",
   "version": "0.0.0-development",
   "type": "module",
   "description": "A template repository for Refokus typescript packages",
@@ -29,12 +29,12 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+ssh://git@github.com/refokus-agency/package-typescript-tmp.git"
+    "url": "git+ssh://git@github.com/refokus-agency/typescript-package-tmp.git"
   },
   "bugs": {
-    "url": "https://github.com/refokus-agency/package-typescript-tmp/issues"
+    "url": "https://github.com/refokus-agency/typescript-package-tmp/issues"
   },
-  "homepage": "https://github.com/refokus-agency/package-typescript-tmp#readme",
+  "homepage": "https://github.com/refokus-agency/typescript-package-tmp#readme",
   "scripts": {
     "build": "tsc",
     "build:clean": "rm -rf dist && npm run build",
