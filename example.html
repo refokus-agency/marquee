@@ -492,7 +492,11 @@
     // Register GSAP plugins
     gsap.registerPlugin(Observer);
 
-    // Debounce utility
+    const RESIZE_DEBOUNCE_MS = 150;
+
+    /**
+     * Creates a debounced function
+     */
     function debounce(fn, delay) {
       let timeoutId = null;
       return (...args) => {
@@ -504,183 +508,245 @@
       };
     }
 
-    // Default configuration
-    const DEFAULT_CONFIG = {
-      wrapperSelector: '[data-marquee]',
-      itemSelector: '[data-marquee-item]',
-      directionAttribute: 'data-marquee-direction',
-      speedAttribute: 'data-marquee-speed',
-      speed: 1,
-      direction: 'ltr',
-      draggable: true,
-      dragEase: 0.5,
-      pauseOnHover: false,
-    };
-
     /**
-     * Creates a marquee instance for a single element
+     * Marquee class for creating infinite scrolling animations
      * 
-     * Structure expected:
-     * - Container (grandparent): max-width: 100%, overflow: hidden - for width calculation
-     * - Track (parent): display: flex, width: max-content - gets the transform
-     * - Wrapper ([data-marquee]): gets cloned to fill the track
+     * Requires a 3-level DOM structure:
+     * - Container (grandparent): overflow: hidden, max-width: 100%
+     * - Track (parent): display: flex, width: max-content
+     * - Wrapper ([data-marquee]): the element passed to constructor, gets cloned
      */
-    function createMarqueeInstance(wrapper, options) {
-      let { speed, direction } = options;
-      const { draggable, dragEase, pauseOnHover } = options;
+    class Marquee {
+      /** Default options */
+      static DEFAULT_OPTIONS = {
+        speed: 1,
+        direction: 'ltr',
+        draggable: true,
+        dragEase: 0.5,
+        pauseOnHover: false,
+      };
 
-      let paused = false;
-      let total = 0;
-      let tickerCallback = null;
-      let observer = null;
-      let resizeHandler = null;
+      constructor(element, options = {}) {
+        this.element = element;
+        this.options = { ...Marquee.DEFAULT_OPTIONS, ...options };
+        this.speed = this.options.speed;
+        this.direction = this.options.direction;
+        this.paused = false;
+        this.destroyed = false;
+        this.position = 0;
+        this.clones = [];
 
-      // Get the track (parent) - this is the flex container that gets transformed
-      const track = wrapper.parentElement;
-      if (!track) {
-        throw new Error('Marquee wrapper must have a parent element (track)');
+        // References for cleanup
+        this.tickerCallback = null;
+        this.observer = null;
+        this.resizeHandler = null;
+        this.boundMouseEnter = null;
+        this.boundMouseLeave = null;
+
+        // Validate and cache DOM structure
+        this.track = this._getTrackElement();
+        this.container = this._getContainerElement();
+        this.originalWidth = this.element.offsetWidth;
+
+        // Initialize wrap and quickTo functions
+        this.wrap = gsap.utils.wrap(-this.originalWidth, 0);
+        this.xTo = this._createQuickTo();
+
+        // Setup marquee
+        this._init();
       }
 
-      // Get the container (grandparent) - this has overflow:hidden and max-width:100%
-      const container = track.parentElement;
-      if (!container) {
-        throw new Error('Marquee track must have a parent element (container)');
+      _getTrackElement() {
+        const track = this.element.parentElement;
+        if (!track) {
+          throw new Error('Marquee wrapper must have a parent element (track)');
+        }
+        return track;
       }
 
-      // Store reference to original wrapper content width
-      let originalWidth = wrapper.offsetWidth;
-      let clones = [];
+      _getContainerElement() {
+        const container = this.track.parentElement;
+        if (!container) {
+          throw new Error('Marquee track must have a parent element (container)');
+        }
+        return container;
+      }
 
-      // Calculate and manage clones
-      function updateClones() {
-        const containerWidth = container.clientWidth;
+      _createQuickTo() {
+        return gsap.quickTo(this.track, 'x', {
+          duration: this.options.dragEase,
+          ease: 'power3',
+          modifiers: {
+            x: gsap.utils.unitize(this.wrap),
+          },
+        });
+      }
 
-        // Calculate how many total wrappers we need (original + clones)
-        // We need enough to fill at least 2x container width for seamless looping
-        const wrappersNeeded = Math.max(2, Math.ceil((containerWidth * 2) / originalWidth) + 1);
+      _init() {
+        this._updateClones();
+        this._setupAnimation();
+        this._setupDragInteraction();
+        this._setupHoverPause();
+        this._setupResizeHandler();
+      }
+
+      _updateClones() {
+        const containerWidth = this.container.clientWidth;
+        const wrappersNeeded = Math.max(
+          2,
+          Math.ceil((containerWidth * 2) / this.originalWidth) + 1
+        );
         const clonesNeeded = wrappersNeeded - 1;
 
-        console.log(`Marquee resize: containerWidth=${containerWidth}, originalWidth=${originalWidth}, clonesNeeded=${clonesNeeded}, current=${clones.length}`);
-
         // Add clones if needed
-        while (clones.length < clonesNeeded) {
-          const clone = wrapper.cloneNode(true);
+        while (this.clones.length < clonesNeeded) {
+          const clone = this.element.cloneNode(true);
           clone.setAttribute('data-marquee-clone', 'true');
           clone.removeAttribute('id');
-          track.appendChild(clone);
-          clones.push(clone);
+          this.track.appendChild(clone);
+          this.clones.push(clone);
         }
 
         // Remove excess clones if needed
-        while (clones.length > clonesNeeded) {
-          const clone = clones.pop();
+        while (this.clones.length > clonesNeeded) {
+          const clone = this.clones.pop();
           clone?.remove();
         }
 
         // Update clone count display for first marquee
         const cloneCountEl = document.getElementById('clone-count-1');
-        if (cloneCountEl && wrapper === document.querySelector('[data-marquee]:not([data-marquee-clone])')) {
-          cloneCountEl.textContent = `Clones: ${clones.length} (${wrappersNeeded} total wrappers)`;
+        const firstWrapper = document.querySelector('[data-marquee]:not([data-marquee-clone])');
+        if (cloneCountEl && this.element === firstWrapper) {
+          cloneCountEl.textContent = `Clones: ${this.clones.length} (${wrappersNeeded} total wrappers)`;
         }
-
-        return clonesNeeded;
       }
 
-      // Initial clone setup
-      updateClones();
-
-      // Create wrap function - wrap based on original wrapper width
-      let wrap = gsap.utils.wrap(-originalWidth, 0);
-
-      // Create quick setter for smooth animations - apply to track
-      let xTo = gsap.quickTo(track, 'x', {
-        duration: dragEase,
-        ease: 'power3',
-        modifiers: {
-          x: gsap.utils.unitize(wrap),
-        },
-      });
-
-      // Handle resize
-      function handleResize() {
-        // Recalculate original width
-        originalWidth = wrapper.offsetWidth;
-
-        // Update clones
-        updateClones();
-
-        // Recreate wrap function with new dimensions
-        wrap = gsap.utils.wrap(-originalWidth, 0);
-
-        // Recreate quick setter
-        xTo = gsap.quickTo(track, 'x', {
-          duration: dragEase,
-          ease: 'power3',
-          modifiers: {
-            x: gsap.utils.unitize(wrap),
-          },
-        });
-
-        // Reset position to avoid jump
-        total = wrap(total);
-        xTo(total);
+      _setupAnimation() {
+        this.tickerCallback = (_time, deltaTime) => {
+          if (this.paused || this.destroyed) return;
+          const directionMultiplier = this.direction === 'rtl' ? -1 : 1;
+          this.position -= (deltaTime / 15) * this.speed * directionMultiplier;
+          this.xTo(this.position);
+        };
+        gsap.ticker.add(this.tickerCallback);
       }
 
-      // Debounced resize handler (150ms)
-      resizeHandler = debounce(handleResize, 150);
-      window.addEventListener('resize', resizeHandler);
-
-      const getDirectionMultiplier = () => (direction === 'rtl' ? -1 : 1);
-
-      // Animation tick
-      tickerCallback = (_time, deltaTime) => {
-        if (paused) return;
-        total -= (deltaTime / 15) * speed * getDirectionMultiplier();
-        xTo(total);
-      };
-
-      gsap.ticker.add(tickerCallback);
-
-      // Drag interaction - on track
-      if (draggable) {
-        observer = Observer.create({
-          target: track,
+      _setupDragInteraction() {
+        if (!this.options.draggable) return;
+        this.observer = Observer.create({
+          target: this.track,
           type: 'pointer,touch',
           onDrag: (self) => {
-            total += self.deltaX;
-            xTo(total);
+            this.position += self.deltaX;
+            this.xTo(this.position);
           },
         });
       }
 
-      // Hover pause - on container
-      if (pauseOnHover) {
-        container.addEventListener('mouseenter', () => { paused = true; });
-        container.addEventListener('mouseleave', () => { paused = false; });
+      _setupHoverPause() {
+        if (!this.options.pauseOnHover) return;
+        this.boundMouseEnter = () => this.pause();
+        this.boundMouseLeave = () => this.resume();
+        this.container.addEventListener('mouseenter', this.boundMouseEnter);
+        this.container.addEventListener('mouseleave', this.boundMouseLeave);
       }
 
-      return {
-        element: wrapper,
-        pause: () => { paused = true; },
-        resume: () => { paused = false; },
-        isPaused: () => paused,
-        setSpeed: (newSpeed) => { speed = newSpeed; },
-        setDirection: (newDirection) => { direction = newDirection; },
-        destroy: () => {
-          if (tickerCallback) gsap.ticker.remove(tickerCallback);
-          if (observer) observer.kill();
-          if (resizeHandler) window.removeEventListener('resize', resizeHandler);
-          clones.forEach((clone) => clone.remove());
-          clones = [];
-          gsap.set(track, { x: 0 });
-        },
-      };
+      _setupResizeHandler() {
+        this.resizeHandler = debounce(() => this._handleResize(), RESIZE_DEBOUNCE_MS);
+        window.addEventListener('resize', this.resizeHandler);
+      }
+
+      _handleResize() {
+        if (this.destroyed) return;
+        this.originalWidth = this.element.offsetWidth;
+        this._updateClones();
+        this.wrap = gsap.utils.wrap(-this.originalWidth, 0);
+        this.xTo = this._createQuickTo();
+        this.position = this.wrap(this.position);
+        this.xTo(this.position);
+      }
+
+      pause() {
+        this.paused = true;
+      }
+
+      resume() {
+        this.paused = false;
+      }
+
+      isPaused() {
+        return this.paused;
+      }
+
+      setSpeed(speed) {
+        this.speed = speed;
+      }
+
+      getSpeed() {
+        return this.speed;
+      }
+
+      setDirection(direction) {
+        this.direction = direction;
+      }
+
+      getDirection() {
+        return this.direction;
+      }
+
+      isDestroyed() {
+        return this.destroyed;
+      }
+
+      destroy() {
+        if (this.destroyed) return;
+        this.destroyed = true;
+
+        if (this.tickerCallback) {
+          gsap.ticker.remove(this.tickerCallback);
+          this.tickerCallback = null;
+        }
+
+        if (this.observer) {
+          this.observer.kill();
+          this.observer = null;
+        }
+
+        if (this.resizeHandler) {
+          window.removeEventListener('resize', this.resizeHandler);
+          this.resizeHandler = null;
+        }
+
+        if (this.boundMouseEnter) {
+          this.container.removeEventListener('mouseenter', this.boundMouseEnter);
+          this.boundMouseEnter = null;
+        }
+
+        if (this.boundMouseLeave) {
+          this.container.removeEventListener('mouseleave', this.boundMouseLeave);
+          this.boundMouseLeave = null;
+        }
+
+        this.clones.forEach((clone) => clone.remove());
+        this.clones = [];
+
+        gsap.set(this.track, { x: 0 });
+      }
     }
 
-    // Initialize marquee
+    /**
+     * Initialize marquee on all matching elements
+     */
     function initMarquee(config = {}) {
-      const mergedConfig = { ...DEFAULT_CONFIG, ...config };
-      const { wrapperSelector, itemSelector, directionAttribute, speedAttribute, ...defaultOptions } = mergedConfig;
+      const defaultConfig = {
+        wrapperSelector: '[data-marquee]',
+        directionAttribute: 'data-marquee-direction',
+        speedAttribute: 'data-marquee-speed',
+        ...Marquee.DEFAULT_OPTIONS,
+      };
+
+      const mergedConfig = { ...defaultConfig, ...config };
+      const { wrapperSelector, directionAttribute, speedAttribute, ...defaultOptions } = mergedConfig;
 
       const wrappers = document.querySelectorAll(wrapperSelector);
       if (!wrappers.length) return [];
@@ -688,7 +754,6 @@
       const instances = [];
 
       wrappers.forEach((wrapper) => {
-        // Skip clones
         if (wrapper.hasAttribute('data-marquee-clone')) return;
 
         const elementDirection = wrapper.getAttribute(directionAttribute);
@@ -706,7 +771,7 @@
         }
 
         try {
-          const instance = createMarqueeInstance(wrapper, options);
+          const instance = new Marquee(wrapper, options);
           instances.push(instance);
         } catch (error) {
           console.warn('Failed to initialize marquee:', error);
@@ -717,6 +782,11 @@
     }
 
     // Initialize all marquees
+    // Note: This demo uses a synchronous inline implementation.
+    // When using the npm package, use async/await:
+    //   const marquees = await initMarquee();
+    //   const marquee = await Marquee.create(element, options);
+    //   const marquee = await createMarquee('#my-marquee');
     const marquees = initMarquee();
     console.log('Marquee instances initialized:', marquees.length);
 
@@ -731,8 +801,6 @@
     const speedValue = document.getElementById('speed-value');
     const statusDot = document.getElementById('status-dot');
     const statusText = document.getElementById('status-text');
-
-    let currentDirection = 'ltr';
 
     function updateStatus() {
       if (controlledMarquee.isPaused()) {
@@ -755,9 +823,9 @@
     });
 
     toggleDirectionBtn.addEventListener('click', () => {
-      currentDirection = currentDirection === 'ltr' ? 'rtl' : 'ltr';
-      controlledMarquee.setDirection(currentDirection);
-      toggleDirectionBtn.textContent = `Direction: ${currentDirection.toUpperCase()}`;
+      const newDirection = controlledMarquee.getDirection() === 'ltr' ? 'rtl' : 'ltr';
+      controlledMarquee.setDirection(newDirection);
+      toggleDirectionBtn.textContent = `Direction: ${newDirection.toUpperCase()}`;
     });
 
     speedSlider.addEventListener('input', (e) => {

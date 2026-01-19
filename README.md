@@ -5,6 +5,7 @@ A GSAP-powered infinite marquee/carousel component for smooth, continuous scroll
 ## Features
 
 - Infinite seamless loop animation
+- **Waits for images to load** before calculating dimensions
 - Dynamic cloning based on container width (auto add/remove on resize)
 - Configurable scroll direction (LTR/RTL)
 - Adjustable scroll speed
@@ -83,8 +84,8 @@ Add the required CSS:
 ```typescript
 import { initMarquee } from '@refokus-agency/marquee';
 
-// Initialize all marquees on the page
-const marquees = initMarquee();
+// Initialize all marquees on the page (async - waits for images)
+const marquees = await initMarquee();
 ```
 
 ### With Configuration
@@ -92,7 +93,7 @@ const marquees = initMarquee();
 ```typescript
 import { initMarquee } from '@refokus-agency/marquee';
 
-const marquees = initMarquee({
+const marquees = await initMarquee({
   speed: 2,              // Scroll speed multiplier (default: 1)
   direction: 'rtl',      // Scroll direction: 'ltr' or 'rtl' (default: 'ltr')
   draggable: true,       // Enable drag interaction (default: true)
@@ -104,41 +105,73 @@ const marquees = initMarquee({
 ### Custom Selectors
 
 ```typescript
-const marquees = initMarquee({
+const marquees = await initMarquee({
   wrapperSelector: '.my-carousel',
   itemSelector: '.carousel-item',
 });
 ```
 
-### Single Element
+### Using the Marquee Class Directly
+
+```typescript
+import { Marquee } from '@refokus-agency/marquee';
+
+const element = document.querySelector('[data-marquee]');
+
+// Option 1: Using static async factory (recommended)
+const marquee = await Marquee.create(element, {
+  speed: 1.5,
+  direction: 'rtl',
+  pauseOnHover: true,
+});
+
+// Option 2: Using constructor with ready promise
+const marquee = new Marquee(element, { speed: 1.5 });
+await marquee.ready; // Wait for images and initialization
+
+// Control the instance
+marquee.pause();
+marquee.resume();
+marquee.setSpeed(2);
+marquee.setDirection('ltr');
+marquee.destroy();
+```
+
+### Factory Function
 
 ```typescript
 import { createMarquee } from '@refokus-agency/marquee';
 
-// By selector
-const marquee = createMarquee('#my-marquee', {
+// By selector (returns null if not found)
+const marquee = await createMarquee('#my-marquee', {
   speed: 1.5,
   pauseOnHover: true,
 });
 
 // By element reference
 const element = document.querySelector('.marquee');
-const marquee = createMarquee(element, { speed: 2 });
+const marquee = await createMarquee(element, { speed: 2 });
 ```
 
 ### Instance Control
 
 ```typescript
-const [marquee] = initMarquee();
+const [marquee] = await initMarquee();
 
 // Pause/resume
 marquee.pause();
 marquee.resume();
 marquee.isPaused(); // boolean
 
-// Update settings
+// Get/set settings
 marquee.setSpeed(2);
+marquee.getSpeed(); // 2
 marquee.setDirection('rtl');
+marquee.getDirection(); // 'rtl'
+
+// Check state
+marquee.isReady();     // true (after images loaded)
+marquee.isDestroyed(); // false
 
 // Cleanup
 marquee.destroy();
@@ -169,9 +202,44 @@ The component automatically:
 
 ## API Reference
 
-### `initMarquee(config?): MarqueeInstance[]`
+### `Marquee` Class
 
-Initialize marquees on all matching elements.
+The main class for creating marquee instances. Waits for all images to load before calculating dimensions.
+
+```typescript
+// Using static factory (recommended)
+const marquee = await Marquee.create(element: HTMLElement, options?: MarqueeOptions);
+
+// Using constructor
+const marquee = new Marquee(element: HTMLElement, options?: MarqueeOptions);
+await marquee.ready; // Wait for initialization
+```
+
+#### Instance Methods
+
+| Method | Return | Description |
+|--------|--------|-------------|
+| `pause()` | `void` | Pause the animation |
+| `resume()` | `void` | Resume the animation |
+| `isPaused()` | `boolean` | Check if paused |
+| `isReady()` | `boolean` | Check if initialized (images loaded) |
+| `setSpeed(speed)` | `void` | Update scroll speed |
+| `getSpeed()` | `number` | Get current speed |
+| `setDirection(dir)` | `void` | Update scroll direction |
+| `getDirection()` | `MarqueeDirection` | Get current direction |
+| `isDestroyed()` | `boolean` | Check if destroyed |
+| `destroy()` | `void` | Clean up and remove |
+
+#### Instance Properties
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `element` | `HTMLElement` | The wrapper element (readonly) |
+| `ready` | `Promise<void>` | Resolves when images loaded and initialized |
+
+### `initMarquee(config?): Promise<Marquee[]>`
+
+Initialize marquees on all matching elements. Returns a promise that resolves when all instances are ready.
 
 #### Config Options
 
@@ -187,21 +255,9 @@ Initialize marquees on all matching elements.
 | `directionAttribute` | `string` | `'data-marquee-direction'` | Attribute for direction |
 | `speedAttribute` | `string` | `'data-marquee-speed'` | Attribute for speed |
 
-### `createMarquee(element, options?): MarqueeInstance | null`
+### `createMarquee(element, options?): Promise<Marquee | null>`
 
-Create a marquee on a single element.
-
-### `MarqueeInstance`
-
-| Method | Description |
-|--------|-------------|
-| `pause()` | Pause the animation |
-| `resume()` | Resume the animation |
-| `isPaused()` | Check if paused |
-| `setSpeed(speed)` | Update scroll speed |
-| `setDirection(dir)` | Update scroll direction |
-| `destroy()` | Clean up and remove |
-| `element` | The wrapper HTMLElement |
+Factory function to create a marquee on a single element. Returns a promise that resolves to the instance or `null` if the element doesn't exist.
 
 ## Development
 

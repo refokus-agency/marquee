@@ -1,24 +1,11 @@
 import { gsap } from 'gsap';
 import { Observer } from 'gsap/dist/Observer';
 
-import type {
-  MarqueeConfig,
-  MarqueeDirection,
-  MarqueeInstance,
-  MarqueeOptions,
-} from './types.ts';
+import type { MarqueeConfig, MarqueeDirection, MarqueeOptions } from './types.ts';
 
-// Register GSAP plugin
 gsap.registerPlugin(Observer);
 
-/**
- * Default configuration values
- */
-const DEFAULT_CONFIG: Required<MarqueeConfig> = {
-  wrapperSelector: '[data-marquee]',
-  itemSelector: '[data-marquee-item]',
-  directionAttribute: 'data-marquee-direction',
-  speedAttribute: 'data-marquee-speed',
+const DEFAULT_OPTIONS: Required<MarqueeOptions> = {
   speed: 1,
   direction: 'ltr',
   draggable: true,
@@ -26,9 +13,16 @@ const DEFAULT_CONFIG: Required<MarqueeConfig> = {
   pauseOnHover: false,
 };
 
-/**
- * Creates a debounced function
- */
+const DEFAULT_CONFIG: Required<MarqueeConfig> = {
+  ...DEFAULT_OPTIONS,
+  wrapperSelector: '[data-marquee]',
+  itemSelector: '[data-marquee-item]',
+  directionAttribute: 'data-marquee-direction',
+  speedAttribute: 'data-marquee-speed',
+};
+
+const RESIZE_DEBOUNCE_MS = 150;
+
 function debounce<T extends (...args: unknown[]) => void>(
   fn: T,
   delay: number
@@ -47,235 +41,305 @@ function debounce<T extends (...args: unknown[]) => void>(
 }
 
 /**
- * Creates a marquee instance for a single element
- * 
- * Structure expected:
- * - Container (grandparent): max-width: 100%, overflow: hidden - used for width calculation
- * - Track (parent): display: flex, width: max-content - gets the transform applied
- * - Wrapper ([data-marquee]): gets cloned to fill the track
+ * Waits for all images within an element to finish loading.
+ * Returns immediately if no images or all images are already loaded.
  */
-function createMarqueeInstance(
-  wrapper: HTMLElement,
-  options: Required<MarqueeOptions>
-): MarqueeInstance {
-  let { speed, direction } = options;
-  const { draggable, dragEase, pauseOnHover } = options;
+function waitForImages(element: HTMLElement): Promise<void> {
+  const images = element.querySelectorAll<HTMLImageElement>('img');
+  if (!images.length) return Promise.resolve();
 
-  let paused = false;
-  let total = 0;
-  let tickerCallback: ((time: number, deltaTime: number) => void) | null = null;
-  let observer: Observer | null = null;
-  let resizeHandler: (() => void) | null = null;
+  const pending = Array.from(images).filter((img) => !img.complete);
+  if (!pending.length) return Promise.resolve();
 
-  // Get the track (parent) - this is the flex container that gets transformed
-  const trackElement = wrapper.parentElement;
-  if (!trackElement) {
-    throw new Error('Marquee wrapper must have a parent element (track)');
-  }
-  const track: HTMLElement = trackElement;
+  return Promise.all(
+    pending.map(
+      (img) =>
+        new Promise<void>((resolve) => {
+          img.addEventListener('load', () => resolve(), { once: true });
+          img.addEventListener('error', () => resolve(), { once: true });
+        })
+    )
+  ).then(() => {});
+}
 
-  // Get the container (grandparent) - this has overflow:hidden and max-width:100%
-  // Used for calculating available width
-  const containerElement = track.parentElement;
-  if (!containerElement) {
-    throw new Error('Marquee track must have a parent element (container)');
-  }
-  const container: HTMLElement = containerElement;
+/**
+ * Marquee class for creating infinite scrolling animations.
+ *
+ * Requires a 3-level DOM structure:
+ * - Container (grandparent): overflow: hidden, max-width: 100%
+ * - Track (parent): display: flex, width: max-content
+ * - Wrapper ([data-marquee]): the element passed to constructor, gets cloned
+ *
+ * The marquee waits for all images to load before calculating dimensions.
+ *
+ * @example
+ * ```typescript
+ * // Using the static create method (recommended for images)
+ * const marquee = await Marquee.create(element, { speed: 2 });
+ *
+ * // Or use the ready promise
+ * const marquee = new Marquee(element, { speed: 2 });
+ * await marquee.ready;
+ * ```
+ */
+export class Marquee {
+  public readonly element: HTMLElement;
+  public readonly ready: Promise<void>;
 
-  // Store reference to original wrapper content width
-  let originalWidth = wrapper.offsetWidth;
-  let clones: HTMLElement[] = [];
+  private readonly track: HTMLElement;
+  private readonly container: HTMLElement;
+  private readonly options: Required<MarqueeOptions>;
+
+  private speed: number;
+  private direction: MarqueeDirection;
+  private paused: boolean = false;
+  private destroyed: boolean = false;
+  private initialized: boolean = false;
+  private position: number = 0;
+  private originalWidth: number = 0;
+  private clones: HTMLElement[] = [];
+
+  private tickerCallback: ((time: number, deltaTime: number) => void) | null = null;
+  private observer: Observer | null = null;
+  private resizeHandler: (() => void) | null = null;
+  private boundMouseEnter: (() => void) | null = null;
+  private boundMouseLeave: (() => void) | null = null;
+  private xTo: gsap.QuickToFunc | null = null;
+  private wrap: ((value: number) => number) | null = null;
 
   /**
-   * Calculate and manage clones to fill the container
+   * Creates a new Marquee instance and waits for images before initializing.
+   * Preferred method when the marquee contains images.
    */
-  function updateClones(): void {
-    // Use container width for calculating how many clones needed
-    const containerWidth = container.clientWidth;
+  static async create(
+    element: HTMLElement,
+    options: MarqueeOptions = {}
+  ): Promise<Marquee> {
+    const instance = new Marquee(element, options);
+    await instance.ready;
+    return instance;
+  }
 
-    // Calculate how many total wrappers we need (original + clones)
-    // We need enough to fill at least 2x container width for seamless looping
-    const wrappersNeeded = Math.max(2, Math.ceil((containerWidth * 2) / originalWidth) + 1);
-    const clonesNeeded = wrappersNeeded - 1; // Subtract the original
+  constructor(element: HTMLElement, options: MarqueeOptions = {}) {
+    this.element = element;
+    this.options = { ...DEFAULT_OPTIONS, ...options };
+    this.speed = this.options.speed;
+    this.direction = this.options.direction;
 
-    // Add clones if needed
-    while (clones.length < clonesNeeded) {
-      const clone = wrapper.cloneNode(true) as HTMLElement;
+    this.track = this.getTrackElement();
+    this.container = this.getContainerElement();
+
+    this.ready = this.initialize();
+  }
+
+  private async initialize(): Promise<void> {
+    await waitForImages(this.element);
+
+    if (this.destroyed) return;
+
+    this.originalWidth = this.element.offsetWidth;
+    this.wrap = gsap.utils.wrap(-this.originalWidth, 0);
+    this.xTo = this.createQuickTo();
+
+    this.updateClones();
+    this.setupAnimation();
+    this.setupDragInteraction();
+    this.setupHoverPause();
+    this.setupResizeHandler();
+
+    this.initialized = true;
+  }
+
+  private getTrackElement(): HTMLElement {
+    const track = this.element.parentElement;
+    if (!track) {
+      throw new Error('Marquee wrapper must have a parent element (track)');
+    }
+    return track;
+  }
+
+  private getContainerElement(): HTMLElement {
+    const container = this.track.parentElement;
+    if (!container) {
+      throw new Error('Marquee track must have a parent element (container)');
+    }
+    return container;
+  }
+
+  private createQuickTo(): gsap.QuickToFunc {
+    return gsap.quickTo(this.track, 'x', {
+      duration: this.options.dragEase,
+      ease: 'power3',
+      modifiers: {
+        x: gsap.utils.unitize(this.wrap!),
+      },
+    });
+  }
+
+  /**
+   * Calculates and manages clones to fill 2x container width for seamless looping
+   */
+  private updateClones(): void {
+    const containerWidth = this.container.clientWidth;
+    const wrappersNeeded = Math.max(
+      2,
+      Math.ceil((containerWidth * 2) / this.originalWidth) + 1
+    );
+    const clonesNeeded = wrappersNeeded - 1;
+
+    while (this.clones.length < clonesNeeded) {
+      const clone = this.element.cloneNode(true) as HTMLElement;
       clone.setAttribute('data-marquee-clone', 'true');
-      clone.removeAttribute('id'); // Remove ID to avoid duplicates
-      track.appendChild(clone);
-      clones.push(clone);
+      clone.removeAttribute('id');
+      this.track.appendChild(clone);
+      this.clones.push(clone);
     }
 
-    // Remove excess clones if needed
-    while (clones.length > clonesNeeded) {
-      const clone = clones.pop();
+    while (this.clones.length > clonesNeeded) {
+      const clone = this.clones.pop();
       clone?.remove();
     }
   }
 
-  /**
-   * Recalculate wrap point based on current content
-   */
-  function getWrapPoint(): number {
-    return originalWidth;
+  private setupAnimation(): void {
+    this.tickerCallback = (_time: number, deltaTime: number) => {
+      if (this.paused || this.destroyed || !this.xTo) return;
+
+      const directionMultiplier = this.direction === 'rtl' ? -1 : 1;
+      this.position -= (deltaTime / 15) * this.speed * directionMultiplier;
+      this.xTo(this.position);
+    };
+
+    gsap.ticker.add(this.tickerCallback);
   }
 
-  // Initial clone setup
-  updateClones();
+  private setupDragInteraction(): void {
+    if (!this.options.draggable) return;
 
-  // Create wrap function
-  let wrap = gsap.utils.wrap(-getWrapPoint(), 0);
-
-  // Create quick setter for smooth animations - apply to track
-  let xTo = gsap.quickTo(track, 'x', {
-    duration: dragEase,
-    ease: 'power3',
-    modifiers: {
-      x: gsap.utils.unitize(wrap),
-    },
-  });
-
-  /**
-   * Handle resize - recalculate clones and wrap point
-   */
-  function handleResize(): void {
-    // Recalculate original width (in case of responsive changes)
-    originalWidth = wrapper.offsetWidth;
-
-    // Update clones
-    updateClones();
-
-    // Recreate wrap function with new dimensions
-    wrap = gsap.utils.wrap(-getWrapPoint(), 0);
-
-    // Recreate quick setter
-    xTo = gsap.quickTo(track, 'x', {
-      duration: dragEase,
-      ease: 'power3',
-      modifiers: {
-        x: gsap.utils.unitize(wrap),
-      },
-    });
-
-    // Reset position to avoid jump
-    total = wrap(total);
-    xTo(total);
-  }
-
-  // Debounced resize handler
-  resizeHandler = debounce(handleResize, 150);
-  window.addEventListener('resize', resizeHandler);
-
-  // Get direction multiplier
-  const getDirectionMultiplier = (): number => (direction === 'rtl' ? -1 : 1);
-
-  // Animation tick function
-  tickerCallback = (_time: number, deltaTime: number) => {
-    if (paused) return;
-    total -= (deltaTime / 15) * speed * getDirectionMultiplier();
-    xTo(total);
-  };
-
-  // Add ticker for continuous animation
-  gsap.ticker.add(tickerCallback);
-
-  // Setup drag interaction on track
-  if (draggable) {
-    observer = Observer.create({
-      target: track,
+    this.observer = Observer.create({
+      target: this.track,
       type: 'pointer,touch',
       onDrag: (self) => {
-        total += self.deltaX;
-        xTo(total);
+        if (!this.xTo) return;
+        this.position += self.deltaX;
+        this.xTo(this.position);
       },
     });
   }
 
-  // Setup hover pause on container
-  if (pauseOnHover) {
-    container.addEventListener('mouseenter', () => {
-      paused = true;
-    });
-    container.addEventListener('mouseleave', () => {
-      paused = false;
-    });
+  private setupHoverPause(): void {
+    if (!this.options.pauseOnHover) return;
+
+    this.boundMouseEnter = () => this.pause();
+    this.boundMouseLeave = () => this.resume();
+
+    this.container.addEventListener('mouseenter', this.boundMouseEnter);
+    this.container.addEventListener('mouseleave', this.boundMouseLeave);
   }
 
-  // Return instance API
-  return {
-    element: wrapper,
+  private setupResizeHandler(): void {
+    this.resizeHandler = debounce(() => this.handleResize(), RESIZE_DEBOUNCE_MS);
+    window.addEventListener('resize', this.resizeHandler);
+  }
 
-    pause: () => {
-      paused = true;
-    },
+  private handleResize(): void {
+    if (this.destroyed || !this.initialized) return;
 
-    resume: () => {
-      paused = false;
-    },
+    this.originalWidth = this.element.offsetWidth;
+    this.updateClones();
 
-    isPaused: () => paused,
+    this.wrap = gsap.utils.wrap(-this.originalWidth, 0);
+    this.xTo = this.createQuickTo();
 
-    setSpeed: (newSpeed: number) => {
-      speed = newSpeed;
-    },
+    this.position = this.wrap(this.position);
+    this.xTo(this.position);
+  }
 
-    setDirection: (newDirection: MarqueeDirection) => {
-      direction = newDirection;
-    },
+  public pause(): void {
+    this.paused = true;
+  }
 
-    destroy: () => {
-      // Remove ticker
-      if (tickerCallback) {
-        gsap.ticker.remove(tickerCallback);
-        tickerCallback = null;
-      }
+  public resume(): void {
+    this.paused = false;
+  }
 
-      // Remove observer
-      if (observer) {
-        observer.kill();
-        observer = null;
-      }
+  public isPaused(): boolean {
+    return this.paused;
+  }
 
-      // Remove resize listener
-      if (resizeHandler) {
-        window.removeEventListener('resize', resizeHandler);
-        resizeHandler = null;
-      }
+  public isReady(): boolean {
+    return this.initialized;
+  }
 
-      // Remove all clones
-      clones.forEach((clone) => clone.remove());
-      clones = [];
+  public setSpeed(speed: number): void {
+    this.speed = speed;
+  }
 
-      // Reset transform
-      gsap.set(track, { x: 0 });
-    },
-  };
+  public getSpeed(): number {
+    return this.speed;
+  }
+
+  public setDirection(direction: MarqueeDirection): void {
+    this.direction = direction;
+  }
+
+  public getDirection(): MarqueeDirection {
+    return this.direction;
+  }
+
+  public isDestroyed(): boolean {
+    return this.destroyed;
+  }
+
+  /**
+   * Cleans up all event listeners, clones, and resets transforms
+   */
+  public destroy(): void {
+    if (this.destroyed) return;
+
+    this.destroyed = true;
+
+    if (this.tickerCallback) {
+      gsap.ticker.remove(this.tickerCallback);
+      this.tickerCallback = null;
+    }
+
+    if (this.observer) {
+      this.observer.kill();
+      this.observer = null;
+    }
+
+    if (this.resizeHandler) {
+      window.removeEventListener('resize', this.resizeHandler);
+      this.resizeHandler = null;
+    }
+
+    if (this.boundMouseEnter) {
+      this.container.removeEventListener('mouseenter', this.boundMouseEnter);
+      this.boundMouseEnter = null;
+    }
+    if (this.boundMouseLeave) {
+      this.container.removeEventListener('mouseleave', this.boundMouseLeave);
+      this.boundMouseLeave = null;
+    }
+
+    this.clones.forEach((clone) => clone.remove());
+    this.clones = [];
+
+    gsap.set(this.track, { x: 0 });
+  }
 }
 
 /**
- * Initialize marquee on all matching elements
- *
- * @param config - Configuration options
- * @returns Array of marquee instances
+ * Initialize marquee on all matching elements. Waits for images to load.
  *
  * @example
  * ```typescript
- * // Basic usage with default selectors
- * const marquees = initMarquee();
- *
- * // With custom options
- * const marquees = initMarquee({
- *   speed: 2,
- *   direction: 'rtl',
- *   pauseOnHover: true,
- * });
- *
- * // Control instances
+ * const marquees = await initMarquee({ speed: 2, direction: 'rtl' });
  * marquees.forEach(m => m.pause());
  * ```
  */
-export function initMarquee(config: MarqueeConfig = {}): MarqueeInstance[] {
+export async function initMarquee(config: MarqueeConfig = {}): Promise<Marquee[]> {
   const mergedConfig = { ...DEFAULT_CONFIG, ...config };
   const {
     wrapperSelector,
@@ -288,58 +352,45 @@ export function initMarquee(config: MarqueeConfig = {}): MarqueeInstance[] {
   const wrappers = document.querySelectorAll<HTMLElement>(wrapperSelector);
   if (!wrappers.length) return [];
 
-  const instances: MarqueeInstance[] = [];
+  const promises: Promise<Marquee | null>[] = [];
 
   wrappers.forEach((wrapper) => {
-    // Skip clones
     if (wrapper.hasAttribute('data-marquee-clone')) return;
 
-    // Read options from element attributes (override defaults)
     const elementDirection = wrapper.getAttribute(directionAttribute) as MarqueeDirection | null;
     const elementSpeed = wrapper.getAttribute(speedAttribute);
 
-    const options: Required<MarqueeOptions> = {
+    const options: MarqueeOptions = {
       ...defaultOptions,
       direction: elementDirection || defaultOptions.direction,
       speed: elementSpeed ? parseFloat(elementSpeed) : defaultOptions.speed,
     };
 
-    try {
-      const instance = createMarqueeInstance(wrapper, options);
-      instances.push(instance);
-    } catch (error) {
+    const promise = Marquee.create(wrapper, options).catch((error) => {
       console.warn('Failed to initialize marquee:', error);
-    }
+      return null;
+    });
+
+    promises.push(promise);
   });
 
-  return instances;
+  const results = await Promise.all(promises);
+  return results.filter((instance): instance is Marquee => instance !== null);
 }
 
 /**
- * Initialize marquee on a single element
- *
- * @param element - The wrapper element or selector
- * @param options - Configuration options
- * @returns Marquee instance or null if element not found
+ * Create a single Marquee instance from an element or selector. Waits for images to load.
  *
  * @example
  * ```typescript
- * const marquee = createMarquee('#my-marquee', {
- *   speed: 1.5,
- *   pauseOnHover: true,
- * });
- *
- * if (marquee) {
- *   marquee.pause();
- *   marquee.setSpeed(2);
- *   marquee.resume();
- * }
+ * const marquee = await createMarquee('#my-marquee', { speed: 1.5 });
+ * marquee?.pause();
  * ```
  */
-export function createMarquee(
+export async function createMarquee(
   element: HTMLElement | string,
   options: MarqueeOptions = {}
-): MarqueeInstance | null {
+): Promise<Marquee | null> {
   const wrapper =
     typeof element === 'string'
       ? document.querySelector<HTMLElement>(element)
@@ -347,13 +398,8 @@ export function createMarquee(
 
   if (!wrapper) return null;
 
-  const mergedOptions: Required<MarqueeOptions> = {
-    ...DEFAULT_CONFIG,
-    ...options,
-  };
-
   try {
-    return createMarqueeInstance(wrapper, mergedOptions);
+    return await Marquee.create(wrapper, options);
   } catch (error) {
     console.warn('Failed to create marquee:', error);
     return null;
