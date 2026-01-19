@@ -1,182 +1,229 @@
-# @refokus-agency/typescript-package-tmp
+# @refokus-agency/marquee
 
-A TypeScript package template for Refokus Agency focused on Webflow CMS sync tools.
+A GSAP-powered infinite marquee/carousel component for smooth, continuous scrolling animations with drag interaction support.
 
 ## Features
 
-- 🔧 Modern TypeScript configuration with strict mode
-- 📦 ES Module support with CommonJS compatibility
-- 🧪 Testing setup with Vitest
-- 🎨 Code formatting with Prettier
-- 🔍 Linting with ESLint (flat config)
-- 🏗️ Build pipeline with TypeScript compiler
-- 📝 Source maps for debugging
+- Infinite seamless loop animation
+- Dynamic cloning based on container width (auto add/remove on resize)
+- Configurable scroll direction (LTR/RTL)
+- Adjustable scroll speed
+- Drag/touch interaction support
+- Pause on hover option
+- Full TypeScript support
+- Programmatic control (pause, resume, destroy)
+- Debounced resize handling (150ms)
 
 ## Requirements
 
 - Node.js >= 22.0.0
-
-> [!WARNING]
-
-This package is not meant to be published or installed. You need to copy this template and setup properly first
-
+- GSAP >= 3.12.0 (peer dependency)
 
 ## Installation
 
 ```bash
-npm install @refokus-agency/typescript-package-tmp
+npm install @refokus-agency/marquee gsap
 ```
 
 ## Usage
 
-```typescript
-import { exampleFunction } from '@refokus-agency/typescript-package-tmp';
+### HTML Setup
 
-exampleFunction(); // Outputs: Hello World
+The marquee requires a **3-level structure**:
+
+1. **Container** (grandparent): `overflow: hidden`, `max-width: 100%` - clips content and provides width for calculations
+2. **Track** (parent): `display: flex`, `width: max-content` - receives the transform animation
+3. **Wrapper** `[data-marquee]`: gets cloned to fill the track seamlessly
+
+```html
+<!-- Container: overflow hidden, used for width calculation -->
+<div class="marquee-container">
+  <!-- Track: gets the transform applied -->
+  <div class="marquee-track">
+    <!-- Wrapper: gets cloned to fill the track -->
+    <div data-marquee class="marquee-wrapper">
+      <div data-marquee-item>Item 1</div>
+      <div data-marquee-item>Item 2</div>
+      <div data-marquee-item>Item 3</div>
+    </div>
+    <!-- Clones are automatically appended here as siblings -->
+  </div>
+</div>
 ```
+
+Add the required CSS:
+
+```css
+/* Container - clips overflow and defines visible width */
+.marquee-container {
+  max-width: 100%;
+  overflow: hidden;
+}
+
+/* Track - flex container that receives transform */
+.marquee-track {
+  display: flex;
+  width: max-content;
+}
+
+/* Wrapper - gets cloned, must not shrink */
+.marquee-wrapper {
+  display: flex;
+  flex-shrink: 0;
+}
+
+/* Items - must not shrink */
+[data-marquee-item] {
+  flex-shrink: 0;
+}
+```
+
+### Basic Usage
+
+```typescript
+import { initMarquee } from '@refokus-agency/marquee';
+
+// Initialize all marquees on the page
+const marquees = initMarquee();
+```
+
+### With Configuration
+
+```typescript
+import { initMarquee } from '@refokus-agency/marquee';
+
+const marquees = initMarquee({
+  speed: 2,              // Scroll speed multiplier (default: 1)
+  direction: 'rtl',      // Scroll direction: 'ltr' or 'rtl' (default: 'ltr')
+  draggable: true,       // Enable drag interaction (default: true)
+  pauseOnHover: true,    // Pause when mouse hovers (default: false)
+  dragEase: 0.5,         // Drag easing duration in seconds (default: 0.5)
+});
+```
+
+### Custom Selectors
+
+```typescript
+const marquees = initMarquee({
+  wrapperSelector: '.my-carousel',
+  itemSelector: '.carousel-item',
+});
+```
+
+### Single Element
+
+```typescript
+import { createMarquee } from '@refokus-agency/marquee';
+
+// By selector
+const marquee = createMarquee('#my-marquee', {
+  speed: 1.5,
+  pauseOnHover: true,
+});
+
+// By element reference
+const element = document.querySelector('.marquee');
+const marquee = createMarquee(element, { speed: 2 });
+```
+
+### Instance Control
+
+```typescript
+const [marquee] = initMarquee();
+
+// Pause/resume
+marquee.pause();
+marquee.resume();
+marquee.isPaused(); // boolean
+
+// Update settings
+marquee.setSpeed(2);
+marquee.setDirection('rtl');
+
+// Cleanup
+marquee.destroy();
+```
+
+### Data Attributes
+
+You can also configure individual marquees via HTML attributes:
+
+```html
+<!-- RTL direction with speed of 2 -->
+<div class="marquee-container">
+  <div class="marquee-track">
+    <div data-marquee data-marquee-direction="rtl" data-marquee-speed="2" class="marquee-wrapper">
+      <div data-marquee-item>Item 1</div>
+      <div data-marquee-item>Item 2</div>
+    </div>
+  </div>
+</div>
+```
+
+### Responsive Cloning
+
+The component automatically:
+- Calculates how many clones are needed based on container width
+- Adds/removes clones on window resize (debounced at 150ms)
+- Creates seamless infinite loops by cloning the entire wrapper element
+
+## API Reference
+
+### `initMarquee(config?): MarqueeInstance[]`
+
+Initialize marquees on all matching elements.
+
+#### Config Options
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `wrapperSelector` | `string` | `'[data-marquee]'` | Selector for wrapper elements |
+| `itemSelector` | `string` | `'[data-marquee-item]'` | Selector for items inside wrapper |
+| `speed` | `number` | `1` | Animation speed multiplier |
+| `direction` | `'ltr' \| 'rtl'` | `'ltr'` | Scroll direction |
+| `draggable` | `boolean` | `true` | Enable drag/touch interaction |
+| `pauseOnHover` | `boolean` | `false` | Pause animation on hover |
+| `dragEase` | `number` | `0.5` | Drag easing duration (seconds) |
+| `directionAttribute` | `string` | `'data-marquee-direction'` | Attribute for direction |
+| `speedAttribute` | `string` | `'data-marquee-speed'` | Attribute for speed |
+
+### `createMarquee(element, options?): MarqueeInstance | null`
+
+Create a marquee on a single element.
+
+### `MarqueeInstance`
+
+| Method | Description |
+|--------|-------------|
+| `pause()` | Pause the animation |
+| `resume()` | Resume the animation |
+| `isPaused()` | Check if paused |
+| `setSpeed(speed)` | Update scroll speed |
+| `setDirection(dir)` | Update scroll direction |
+| `destroy()` | Clean up and remove |
+| `element` | The wrapper HTMLElement |
 
 ## Development
 
 ### Available Scripts
 
-#### Building
 ```bash
 npm run build          # Compile TypeScript
 npm run build:clean    # Clean and rebuild
 npm run build:watch    # Watch mode
-```
-
-#### Testing
-```bash
 npm test               # Run tests
-npm run test:watch     # Watch mode
-npm run test:coverage  # With coverage
-npm run test:ui        # With UI
-```
-
-#### Code Quality
-```bash
-npm run check-types    # Type checking
-npm run lint           # Lint and fix
+npm run lint           # Lint code
 npm run format         # Format code
-```
-
-## Project Structure
-
-```
-src/
-├── index.ts           # Main entry point
-└── example/
-    └── index.ts       # Example implementations
+npm run commit         # Conventional commit wizard
 ```
 
 ## Publishing
 
-This package uses automated semantic versioning and publishing through GitHub Actions. The release process is triggered automatically on pushes to the `main` branch or manually through GitHub Actions.
-
-### Release Process
-
-The publishing workflow (`workflows/release-package-version.yml`) handles the following:
-
-1. **Automatic Triggering**: Releases check are triggered on:
-   - Push to `main` branch
-
-2. **Environment**: Runs in the `Production` Github repository environment with required permissions
-    - Accesess `GH_PAT_TOKEN` secret inside `Production` environment
-        - Its value should be a [PAT](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens) with the following access
-            - **repo**: all
-            - **packages**: all
-
-### Semantic Versioning
-
-> **⚠️ WARNING:**
-> This repository uses automated semantic versioning and publishing.
-> **Do not publish manually with `npm publish`.**
-> All releases are handled by GitHub Actions via semantic-release.
->  
-> To trigger a release, push to the `main` branch or use the GitHub Actions workflow manually.
->  
-> Ensure your commits follow [Conventional Commits](https://www.conventionalcommits.org/) to enable correct versioning and changelog generation.
-> In order to do that, you MUST run use `npm run commit` to run the commitizen wizzard and be compliant with our versioning standards
-
-The project uses [semantic-release](https://semantic-release.gitbook.io/) for automated version management based on conventional commits:
-
-- **Major version** (`x.0.0`): Breaking changes (commits with `BREAKING CHANGE:` or `!:`)
-- **Minor version** (`0.x.0`): New features (commits with `feat:`)
-- **Patch version** (`0.0.x`): Bug fixes (commits with `fix:`)
-
-
-
-### Commit Message Format
-
-Follow the [Conventional Commits](https://www.conventionalcommits.org/) specification:
+This package uses automated semantic versioning via GitHub Actions. Commits must follow [Conventional Commits](https://www.conventionalcommits.org/):
 
 ```bash
-# Feature
-feat: add new functionality
-
-# Bug fix
-fix: resolve issue with feature
-
-# Breaking change
-feat!: remove deprecated API
-# or
-feat: add new API
-BREAKING CHANGE: old API has been removed
-
-# Documentation
-docs: update README
-
-# Style changes
-style: format code
-
-# Refactoring
-refactor: restructure code
-
-# Performance
-perf: improve performance
-
-# Tests
-test: add unit tests
+npm run commit  # Use the commit wizard
 ```
-
-### Publishing to GitHub Packages
-
-The package is published to GitHub Packages under the `@refokus-agency` scope. The workflow:
-
-- Uses GitHub Packages registry (`https://npm.pkg.github.com`)
-- Publishes under `@refokus-agency` scope
-- Requires `GITHUB_TOKEN` and `GH_PAT_TOKEN` secrets
-
-### Manual Release
-
-To trigger a release manually:
-
-1. Go to the GitHub repository
-2. Navigate to **Actions** tab
-3. Select **Release Package Version** workflow
-4. Click **Run workflow**
-5. Choose the branch (usually `main`)
-6. Click **Run workflow**
-
-### Prerequisites
-
-Before publishing, ensure:
-
-- All tests pass (`npm test`)
-- Code is properly formatted (`npm run format`)
-- Linting passes (`npm run lint`)
-- Type checking passes (`npm run check-types`)
-- Commit messages follow conventional commits format
-
-### Release Notes
-
-Semantic-release automatically:
-- Generates changelog based on commit messages
-- Creates GitHub releases with release notes
-- Tags releases in Git
-- Updates package version in `package.json`
-
 
 ## License
 
