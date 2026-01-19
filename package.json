@@ -1,8 +1,8 @@
 {
-  "name": "@refokus-agency/typescript-package-tmp",
+  "name": "@refokus-agency/marquee",
   "version": "0.0.0-development",
   "type": "module",
-  "description": "A template repository for Refokus typescript packages",
+  "description": "Marquee component package for Refokus",
   "main": "dist/index.js",
   "module": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -20,21 +20,20 @@
   ],
   "author": "",
   "keywords": [
-    "webflow",
-    "cms",
-    "sync",
-    "api",
-    "data-import",
+    "marquee",
+    "animation",
+    "scroll",
+    "carousel",
     "typescript"
   ],
   "repository": {
     "type": "git",
-    "url": "git+ssh://git@github.com/refokus-agency/typescript-package-tmp.git"
+    "url": "git+ssh://git@github.com/refokus-agency/marquee.git"
   },
   "bugs": {
-    "url": "https://github.com/refokus-agency/typescript-package-tmp/issues"
+    "url": "https://github.com/refokus-agency/marquee/issues"
   },
-  "homepage": "https://github.com/refokus-agency/typescript-package-tmp#readme",
+  "homepage": "https://github.com/refokus-agency/marquee#readme",
   "scripts": {
     "build": "tsc",
     "build:clean": "rm -rf dist && npm run build",
