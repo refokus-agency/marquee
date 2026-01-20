@@ -484,19 +484,23 @@
     </div>
   </section>
 
-  <!-- Import map for GSAP (required for browser ESM usage) -->
+  <!-- Load GSAP from CDN (UMD globals) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/Observer.min.js"></script>
+
+  <!-- Import map: shims expose GSAP globals as ES modules -->
   <script type="importmap">
     {
       "imports": {
-        "gsap": "https://cdn.jsdelivr.net/npm/gsap@3.12.5/+esm",
-        "gsap/dist/Observer": "https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/Observer.js"
+        "gsap": "./gsap-shim.js",
+        "gsap/dist/Observer": "./gsap-observer-shim.js"
       }
     }
   </script>
 
   <script type="module">
-    // Import from the built package
-    import { initMarquee, createMarquee } from './dist/index.js';
+    // Import from the bundled browser version
+    import { initMarquee, createMarquee } from './dist/marquee.browser.js';
 
     // Initialize all marquees (async - waits for images to load)
     async function init() {

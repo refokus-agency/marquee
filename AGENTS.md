@@ -6,7 +6,8 @@ Guidelines for AI coding agents working in `@refokus-agency/marquee`.
 
 GSAP-powered infinite marquee/carousel using **class-based OOP architecture**.
 
-**Marquee Class** (`src/marquee/index.ts`):
+**Marquee Class** (`src/index.ts`):
+
 - Encapsulates all marquee logic in a single class
 - **Async initialization**: waits for images to load before calculating dimensions
 - Private methods (no prefix, TypeScript `private` keyword)
@@ -16,6 +17,7 @@ GSAP-powered infinite marquee/carousel using **class-based OOP architecture**.
 - Static factory: `Marquee.create()` (async)
 
 **Features:**
+
 - Infinite seamless loop animation
 - **Waits for images to load** before calculating dimensions
 - Dynamic cloning based on container width (auto add/remove on resize)
@@ -44,33 +46,46 @@ The marquee requires a **3-level structure**:
 ```
 
 **Required CSS:**
+
 ```css
-.marquee-container { max-width: 100%; overflow: hidden; }
-.marquee-track { display: flex; width: max-content; will-change: transform; }
-.marquee-wrapper { display: flex; flex-shrink: 0; }
-[data-marquee-item] { flex-shrink: 0; }
+.marquee-container {
+  max-width: 100%;
+  overflow: hidden;
+}
+.marquee-track {
+  display: flex;
+  width: max-content;
+  will-change: transform;
+}
+.marquee-wrapper {
+  display: flex;
+  flex-shrink: 0;
+}
+[data-marquee-item] {
+  flex-shrink: 0;
+}
 ```
 
 **Data attributes:** `data-marquee-direction="rtl"`, `data-marquee-speed="2"`
 
 ## Build/Lint/Test Commands
 
-| Command | Description |
-|---------|-------------|
-| `npm run build` | Compile TypeScript to dist/ |
-| `npm run build:clean` | Clean dist/ and rebuild |
-| `npm test` | Run all tests (Vitest) |
-| `npm run lint` | Run ESLint with auto-fix |
-| `npm run format` | Format code with Prettier |
-| `npm run check-types` | TypeScript type checking |
-| `npm run commit` | Conventional commit wizard |
+| Command               | Description                 |
+| --------------------- | --------------------------- |
+| `npm run build`       | Compile TypeScript to dist/ |
+| `npm run build:clean` | Clean dist/ and rebuild     |
+| `npm test`            | Run all tests (Vitest)      |
+| `npm run lint`        | Run ESLint with auto-fix    |
+| `npm run format`      | Format code with Prettier   |
+| `npm run check-types` | TypeScript type checking    |
+| `npm run commit`      | Conventional commit wizard  |
 
 ### Running a Single Test
 
 ```bash
-npx vitest run src/marquee/__tests__/index.test.ts  # specific file
-npx vitest run -t "should export"                   # by pattern
-npx vitest src/marquee/__tests__/index.test.ts      # watch mode
+npx vitest run src/__tests__/index.test.ts  # specific file
+npx vitest run -t "should export"           # by pattern
+npx vitest src/__tests__/index.test.ts      # watch mode
 ```
 
 **Requirements**: Node.js >= 22.0.0, GSAP >= 3.12.0 (peer dependency)
@@ -78,18 +93,21 @@ npx vitest src/marquee/__tests__/index.test.ts      # watch mode
 ## Code Style
 
 ### Formatting (Prettier)
+
 - 2 spaces indentation (no tabs)
 - Single quotes
 - Semicolons always required
 - Trailing commas everywhere
 
 ### ESLint
+
 - `no-console`: allowed
 - `@typescript-eslint/no-explicit-any`: allowed
 - `@typescript-eslint/no-unused-vars`: warn, prefix unused with `_`
 - Use simple array syntax (`string[]` not `Array<string>`)
 
 ### TypeScript
+
 - Strict mode via `@total-typescript/tsconfig`
 - File extensions required in imports (`.ts`)
 - Separate `types.ts` files for type definitions
@@ -112,16 +130,16 @@ import type { MarqueeConfig, MarqueeInstance } from './types.ts';
 
 ## Naming Conventions
 
-| Type | Convention | Examples |
-|------|------------|----------|
-| Files | kebab-case/lowercase | `index.ts`, `types.ts` |
-| Classes | PascalCase | `Marquee` |
-| Class methods (public) | camelCase | `pause`, `resume`, `setSpeed` |
+| Type                    | Convention            | Examples                                     |
+| ----------------------- | --------------------- | -------------------------------------------- |
+| Files                   | kebab-case/lowercase  | `index.ts`, `types.ts`                       |
+| Classes                 | PascalCase            | `Marquee`                                    |
+| Class methods (public)  | camelCase             | `pause`, `resume`, `setSpeed`                |
 | Class methods (private) | camelCase (no prefix) | `initialize`, `updateClones`, `handleResize` |
-| Functions | camelCase | `initMarquee`, `createMarquee` |
-| Types/Interfaces | PascalCase | `MarqueeConfig`, `MarqueeOptions` |
-| Constants | SCREAMING_SNAKE_CASE | `DEFAULT_OPTIONS`, `RESIZE_DEBOUNCE_MS` |
-| Unused params | `_` prefix | `_itemSelector`, `_time` |
+| Functions               | camelCase             | `initMarquee`, `createMarquee`               |
+| Types/Interfaces        | PascalCase            | `MarqueeConfig`, `MarqueeOptions`            |
+| Constants               | SCREAMING_SNAKE_CASE  | `DEFAULT_OPTIONS`, `RESIZE_DEBOUNCE_MS`      |
+| Unused params           | `_` prefix            | `_itemSelector`, `_time`                     |
 
 ## Type Definitions
 
@@ -161,7 +179,7 @@ if (!wrapper) return null;
 
 ## Documentation Style
 
-```typescript
+````typescript
 /**
  * Initialize marquee on all matching elements.
  * Waits for images to load before calculating dimensions.
@@ -175,7 +193,7 @@ if (!wrapper) return null;
  * ```
  */
 export async function initMarquee(config: MarqueeConfig = {}): Promise<Marquee[]> {
-```
+````
 
 ## Test Patterns
 
@@ -219,12 +237,10 @@ describe('Marquee - DOM Structure', () => {
 
 ```
 src/
-├── index.ts              # Barrel file: exports Marquee, initMarquee, createMarquee
-└── marquee/
-    ├── index.ts          # Marquee class + factory functions
-    ├── types.ts          # MarqueeOptions, MarqueeConfig, MarqueeDirection
-    └── __tests__/
-        └── index.test.ts
+├── index.ts          # Marquee class + factory functions + exports
+├── types.ts          # MarqueeOptions, MarqueeConfig, MarqueeDirection
+└── __tests__/
+    └── index.test.ts
 ```
 
 ## Commits
