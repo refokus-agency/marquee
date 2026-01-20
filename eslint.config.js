@@ -14,6 +14,9 @@ export default [
       '.vscode/**',
       '*.config.js',
       '*.config.ts',
+      '**/*.test.ts',
+      '**/*.spec.ts',
+      '**/__tests__/**',
     ],
   },
   {

@@ -35,7 +35,8 @@
   },
   "homepage": "https://github.com/refokus-agency/marquee#readme",
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && npm run build:browser",
+    "build:browser": "esbuild src/index.ts --bundle --format=esm --external:gsap --external:gsap/dist/Observer --outfile=dist/marquee.browser.js",
     "build:clean": "rm -rf dist && npm run build",
     "build:watch": "tsc --watch",
     "prepublishOnly": "npm run check-types && npm run lint && npm run build:clean",
@@ -49,7 +50,9 @@
     "test:ui": "vitest --ui",
     "commit": "cz"
   },
-  "dependencies": {},
+  "peerDependencies": {
+    "gsap": "^3.12.0"
+  },
   "devDependencies": {
     "@eslint/js": "^9.30.1",
     "@total-typescript/tsconfig": "^1.0.4",
@@ -60,9 +63,12 @@
     "@vitest/ui": "^3.2.4",
     "commitizen": "^4.3.1",
     "cz-conventional-changelog": "3.3.0",
+    "esbuild": "^0.27.2",
     "eslint": "^9.30.1",
     "eslint-config-prettier": "^9.1.0",
     "eslint-plugin-n": "^17.21.0",
+    "gsap": "^3.12.0",
+    "jsdom": "^26.0.0",
     "prettier": "^3.6.2",
     "typescript": "^5.8.3",
     "vitest": "^3.2.4"

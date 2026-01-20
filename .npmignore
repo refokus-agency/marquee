@@ -9,6 +9,8 @@ jest.config.js
 .eslintrc*
 .prettierrc*
 nodemon.json
+vite.config.ts
+example.html
 
 # Development dependencies
 .vscode/

@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Marquee Component Demo</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #0a0a0a;
+      color: #fff;
+      min-height: 100vh;
+      padding: 2rem;
+    }
+
+    h1 {
+      text-align: center;
+      margin-bottom: 3rem;
+      font-size: 2.5rem;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .section {
+      margin-bottom: 4rem;
+    }
+
+    .section-title {
+      font-size: 1.25rem;
+      color: #888;
+      margin-bottom: 1rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+    }
+
+    .section-description {
+      color: #666;
+      margin-bottom: 1.5rem;
+      font-size: 0.9rem;
+    }
+
+    /*
+     * 3-LEVEL STRUCTURE:
+     * 1. Container (grandparent): overflow: hidden, max-width: 100% - for width calculation
+     * 2. Track (parent): display: flex, width: max-content - gets the transform
+     * 3. Wrapper [data-marquee]: gets cloned to fill the track
+     */
+
+    /* Container - overflow hidden, used for width calculation */
+    .c-logos-marquee-container {
+      max-width: 100%;
+      overflow: hidden;
+      padding: 1rem 0;
+    }
+
+    /* Track - gets the transform applied */
+    .c-logos-marquee {
+      display: flex;
+      width: max-content;
+    }
+
+    /* The wrapper that gets cloned */
+    .c-logos-marquee_wrapper {
+      display: flex;
+      flex-shrink: 0;
+    }
+
+    /* Logo Items */
+    .c-logos-marquee_logo-item {
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0 1.5rem;
+      height: 80px;
+    }
+
+    .c-logo-marquee_logo {
+      height: 40px;
+      width: auto;
+      object-fit: contain;
+      filter: grayscale(100%) brightness(2);
+      opacity: 0.7;
+      transition: all 0.3s ease;
+    }
+
+    .c-logo-marquee_logo:hover {
+      filter: grayscale(0%) brightness(1);
+      opacity: 1;
+    }
+
+    /* Text marquee styles */
+    .c-text-marquee-container {
+      max-width: 100%;
+      overflow: hidden;
+      padding: 2rem 0;
+    }
+
+    .c-text-marquee {
+      display: flex;
+      width: max-content;
+    }
+
+    .c-text-marquee_wrapper {
+      display: flex;
+      flex-shrink: 0;
+    }
+
+    .c-text-marquee_item {
+      flex-shrink: 0;
+      padding: 0 3rem;
+      font-size: 4rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: transparent;
+      -webkit-text-stroke: 1px rgba(255, 255, 255, 0.3);
+    }
+
+    .c-text-marquee_item span {
+      color: #667eea;
+      -webkit-text-stroke: 0;
+    }
+
+    /* Card marquee styles */
+    .c-card-marquee-container {
+      max-width: 100%;
+      overflow: hidden;
+      padding: 1rem 0;
+    }
+
+    .c-card-marquee {
+      display: flex;
+      width: max-content;
+    }
+
+    .c-card-marquee_wrapper {
+      display: flex;
+      flex-shrink: 0;
+      gap: 1.5rem;
+      padding-right: 1.5rem; /* Match gap for seamless loop */
+    }
+
+    .c-card-marquee_item {
+      flex-shrink: 0;
+      width: 300px;
+      padding: 1.5rem;
+      background: linear-gradient(145deg, #1a1a2e, #16213e);
+      border-radius: 16px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .c-card-marquee_item h3 {
+      font-size: 1.1rem;
+      margin-bottom: 0.5rem;
+      color: #667eea;
+    }
+
+    .c-card-marquee_item p {
+      font-size: 0.85rem;
+      color: #888;
+      line-height: 1.5;
+    }
+
+    /* Controls */
+    .controls {
+      display: flex;
+      gap: 1rem;
+      margin-top: 1rem;
+      flex-wrap: wrap;
+    }
+
+    .control-btn {
+      padding: 0.75rem 1.5rem;
+      border: none;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .control-btn.primary {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+    }
+
+    .control-btn.secondary {
+      background: rgba(255, 255, 255, 0.1);
+      color: white;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .control-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 20px rgba(102, 126, 234, 0.3);
+    }
+
+    /* Status indicator */
+    .status {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.5rem 1rem;
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 20px;
+      font-size: 0.85rem;
+      margin-left: 1rem;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #4ade80;
+    }
+
+    .status-dot.paused {
+      background: #f59e0b;
+    }
+
+    .hover-hint {
+      font-size: 0.8rem;
+      color: #666;
+      font-style: italic;
+      margin-top: 0.5rem;
+    }
+
+    .speed-control {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      margin-top: 1rem;
+    }
+
+    .speed-control label {
+      font-size: 0.9rem;
+      color: #888;
+    }
+
+    .speed-control input[type="range"] {
+      width: 150px;
+      accent-color: #667eea;
+    }
+
+    .speed-value {
+      font-weight: 600;
+      color: #667eea;
+      min-width: 40px;
+    }
+
+    code {
+      background: rgba(255, 255, 255, 0.1);
+      padding: 0.2rem 0.5rem;
+      border-radius: 4px;
+      font-size: 0.85rem;
+    }
+
+    .resize-hint {
+      background: rgba(102, 126, 234, 0.1);
+      border: 1px solid rgba(102, 126, 234, 0.3);
+      padding: 1rem;
+      border-radius: 8px;
+      margin-bottom: 2rem;
+      font-size: 0.9rem;
+      color: #888;
+    }
+
+    .resize-hint strong {
+      color: #667eea;
+    }
+
+    .clone-count {
+      font-size: 0.8rem;
+      color: #667eea;
+      margin-top: 0.5rem;
+    }
+  </style>
+</head>
+<body>
+  <h1>Marquee Component Demo</h1>
+
+  <div class="resize-hint">
+    <strong>Resize the window</strong> to see the component dynamically add/remove clones to fill the viewport. 
+    The cloning is debounced (150ms) for performance. The entire <code>[data-marquee]</code> wrapper is cloned, not individual items.
+  </div>
+
+  <!-- 1. Basic Logo Marquee (LTR) -->
+  <section class="section">
+    <h2 class="section-title">1. Basic Logo Marquee (LTR)</h2>
+    <p class="section-description">Default left-to-right movement with draggable interaction.</p>
+    
+    <!-- Container: overflow hidden, max-width 100% -->
+    <div class="c-logos-marquee-container">
+      <!-- Track: display flex, width max-content, gets transform -->
+      <div class="c-logos-marquee">
+        <!-- Wrapper: gets cloned -->
+        <div data-marquee class="c-logos-marquee_wrapper">
+          <div data-marquee-item class="c-logos-marquee_logo-item">
+            <img src="https://cdn.prod.website-files.com/67dd6fe7bd7e331b5970b9f4/67ec0bf2cd17b013740392ef_logo-32.avif" loading="lazy" alt="" class="c-logo-marquee_logo">
+          </div>
+          <div data-marquee-item class="c-logos-marquee_logo-item">
+            <img src="https://cdn.prod.website-files.com/67dd6fe7bd7e331b5970b9f4/67ec0bef67f6f414e2ce45ba_logo-14.avif" loading="lazy" alt="" class="c-logo-marquee_logo">
+          </div>
+          <div data-marquee-item class="c-logos-marquee_logo-item">
+            <img src="https://cdn.prod.website-files.com/67dd6fe7bd7e331b5970b9f4/67ec0bf14ac5ca412f10fc44_logo-24.avif" loading="lazy" alt="" class="c-logo-marquee_logo">
+          </div>
+          <div data-marquee-item class="c-logos-marquee_logo-item">
+            <img src="https://cdn.prod.website-files.com/67dd6fe7bd7e331b5970b9f4/67ec0bf274e3857aad694093_logo-35.avif" loading="lazy" alt="" class="c-logo-marquee_logo">
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="clone-count" id="clone-count-1">Clones: calculating...</div>
+  </section>
+
+  <!-- 2. RTL Marquee -->
+  <section class="section">
+    <h2 class="section-title">2. Right-to-Left Marquee</h2>
+    <p class="section-description">Using <code>data-marquee-direction="rtl"</code> attribute.</p>
+    
+    <div class="c-logos-marquee-container">
+      <div class="c-logos-marquee">
+        <div data-marquee data-marquee-direction="rtl" class="c-logos-marquee_wrapper">
+          <div data-marquee-item class="c-logos-marquee_logo-item">
+            <img src="https://cdn.prod.website-files.com/67dd6fe7bd7e331b5970b9f4/67ec0bf2cd17b013740392ef_logo-32.avif" loading="lazy" alt="" class="c-logo-marquee_logo">
+          </div>
+          <div data-marquee-item class="c-logos-marquee_logo-item">
+            <img src="https://cdn.prod.website-files.com/67dd6fe7bd7e331b5970b9f4/67ec0bef67f6f414e2ce45ba_logo-14.avif" loading="lazy" alt="" class="c-logo-marquee_logo">
+          </div>
+          <div data-marquee-item class="c-logos-marquee_logo-item">
+            <img src="https://cdn.prod.website-files.com/67dd6fe7bd7e331b5970b9f4/67ec0bf14ac5ca412f10fc44_logo-24.avif" loading="lazy" alt="" class="c-logo-marquee_logo">
+          </div>
+          <div data-marquee-item class="c-logos-marquee_logo-item">
+            <img src="https://cdn.prod.website-files.com/67dd6fe7bd7e331b5970b9f4/67ec0bf274e3857aad694093_logo-35.avif" loading="lazy" alt="" class="c-logo-marquee_logo">
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3. Fast Speed Marquee -->
+  <section class="section">
+    <h2 class="section-title">3. Fast Speed Marquee</h2>
+    <p class="section-description">Using <code>data-marquee-speed="3"</code> attribute for 3x speed.</p>
+    
+    <div class="c-logos-marquee-container">
+      <div class="c-logos-marquee">
+        <div data-marquee data-marquee-speed="3" class="c-logos-marquee_wrapper">
+          <div data-marquee-item class="c-logos-marquee_logo-item">
+            <img src="https://cdn.prod.website-files.com/67dd6fe7bd7e331b5970b9f4/67ec0bf2cd17b013740392ef_logo-32.avif" loading="lazy" alt="" class="c-logo-marquee_logo">
+          </div>
+          <div data-marquee-item class="c-logos-marquee_logo-item">
+            <img src="https://cdn.prod.website-files.com/67dd6fe7bd7e331b5970b9f4/67ec0bef67f6f414e2ce45ba_logo-14.avif" loading="lazy" alt="" class="c-logo-marquee_logo">
+          </div>
+          <div data-marquee-item class="c-logos-marquee_logo-item">
+            <img src="https://cdn.prod.website-files.com/67dd6fe7bd7e331b5970b9f4/67ec0bf14ac5ca412f10fc44_logo-24.avif" loading="lazy" alt="" class="c-logo-marquee_logo">
+          </div>
+          <div data-marquee-item class="c-logos-marquee_logo-item">
+            <img src="https://cdn.prod.website-files.com/67dd6fe7bd7e331b5970b9f4/67ec0bf274e3857aad694093_logo-35.avif" loading="lazy" alt="" class="c-logo-marquee_logo">
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 4. Pause on Hover -->
+  <section class="section">
+    <h2 class="section-title">4. Pause on Hover</h2>
+    <p class="section-description">Hover over the marquee to pause it.</p>
+    
+    <div class="c-logos-marquee-container" id="hover-marquee-container">
+      <div class="c-logos-marquee">
+        <div data-marquee id="hover-marquee" class="c-logos-marquee_wrapper">
+          <div data-marquee-item class="c-logos-marquee_logo-item">
+            <img src="https://cdn.prod.website-files.com/67dd6fe7bd7e331b5970b9f4/67ec0bf2cd17b013740392ef_logo-32.avif" loading="lazy" alt="" class="c-logo-marquee_logo">
+          </div>
+          <div data-marquee-item class="c-logos-marquee_logo-item">
+            <img src="https://cdn.prod.website-files.com/67dd6fe7bd7e331b5970b9f4/67ec0bef67f6f414e2ce45ba_logo-14.avif" loading="lazy" alt="" class="c-logo-marquee_logo">
+          </div>
+          <div data-marquee-item class="c-logos-marquee_logo-item">
+            <img src="https://cdn.prod.website-files.com/67dd6fe7bd7e331b5970b9f4/67ec0bf14ac5ca412f10fc44_logo-24.avif" loading="lazy" alt="" class="c-logo-marquee_logo">
+          </div>
+          <div data-marquee-item class="c-logos-marquee_logo-item">
+            <img src="https://cdn.prod.website-files.com/67dd6fe7bd7e331b5970b9f4/67ec0bf274e3857aad694093_logo-35.avif" loading="lazy" alt="" class="c-logo-marquee_logo">
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="hover-hint">Hover over the logos to pause the animation</p>
+  </section>
+
+  <!-- 5. Text Marquee -->
+  <section class="section">
+    <h2 class="section-title">5. Text Marquee</h2>
+    <p class="section-description">Large text with stroke effect, perfect for headlines.</p>
+    
+    <div class="c-text-marquee-container">
+      <div class="c-text-marquee">
+        <div data-marquee data-marquee-speed="0.5" class="c-text-marquee_wrapper">
+          <div data-marquee-item class="c-text-marquee_item">Design <span>&</span> Development</div>
+          <div data-marquee-item class="c-text-marquee_item">Creative <span>&</span> Strategy</div>
+          <div data-marquee-item class="c-text-marquee_item">Brand <span>&</span> Identity</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 6. Card Marquee -->
+  <section class="section">
+    <h2 class="section-title">6. Card Marquee</h2>
+    <p class="section-description">Showcase cards with content, using RTL direction.</p>
+    
+    <div class="c-card-marquee-container">
+      <div class="c-card-marquee">
+        <div data-marquee data-marquee-direction="rtl" data-marquee-speed="0.8" class="c-card-marquee_wrapper">
+          <div data-marquee-item class="c-card-marquee_item">
+            <h3>Web Development</h3>
+            <p>Building modern, responsive websites with cutting-edge technologies.</p>
+          </div>
+          <div data-marquee-item class="c-card-marquee_item">
+            <h3>UI/UX Design</h3>
+            <p>Creating intuitive and beautiful user experiences that delight.</p>
+          </div>
+          <div data-marquee-item class="c-card-marquee_item">
+            <h3>Brand Strategy</h3>
+            <p>Developing compelling brand narratives that resonate with audiences.</p>
+          </div>
+          <div data-marquee-item class="c-card-marquee_item">
+            <h3>Motion Design</h3>
+            <p>Bringing interfaces to life with smooth, purposeful animations.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 7. Programmatic Control -->
+  <section class="section">
+    <h2 class="section-title">7. Programmatic Control</h2>
+    <p class="section-description">Control the marquee with JavaScript methods.</p>
+    
+    <div class="c-logos-marquee-container">
+      <div class="c-logos-marquee" id="controlled-marquee-track">
+        <div data-marquee id="controlled-marquee" class="c-logos-marquee_wrapper">
+          <div data-marquee-item class="c-logos-marquee_logo-item">
+            <img src="https://cdn.prod.website-files.com/67dd6fe7bd7e331b5970b9f4/67ec0bf2cd17b013740392ef_logo-32.avif" loading="lazy" alt="" class="c-logo-marquee_logo">
+          </div>
+          <div data-marquee-item class="c-logos-marquee_logo-item">
+            <img src="https://cdn.prod.website-files.com/67dd6fe7bd7e331b5970b9f4/67ec0bef67f6f414e2ce45ba_logo-14.avif" loading="lazy" alt="" class="c-logo-marquee_logo">
+          </div>
+          <div data-marquee-item class="c-logos-marquee_logo-item">
+            <img src="https://cdn.prod.website-files.com/67dd6fe7bd7e331b5970b9f4/67ec0bf14ac5ca412f10fc44_logo-24.avif" loading="lazy" alt="" class="c-logo-marquee_logo">
+          </div>
+          <div data-marquee-item class="c-logos-marquee_logo-item">
+            <img src="https://cdn.prod.website-files.com/67dd6fe7bd7e331b5970b9f4/67ec0bf274e3857aad694093_logo-35.avif" loading="lazy" alt="" class="c-logo-marquee_logo">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="controls">
+      <button class="control-btn primary" id="pause-btn">Pause</button>
+      <button class="control-btn primary" id="resume-btn">Resume</button>
+      <button class="control-btn secondary" id="toggle-direction">Toggle Direction</button>
+      <span class="status">
+        <span class="status-dot" id="status-dot"></span>
+        <span id="status-text">Playing</span>
+      </span>
+    </div>
+
+    <div class="speed-control">
+      <label for="speed-slider">Speed:</label>
+      <input type="range" id="speed-slider" min="0.5" max="5" step="0.5" value="1">
+      <span class="speed-value" id="speed-value">1x</span>
+    </div>
+  </section>
+
+  <!-- Load GSAP from CDN (UMD globals) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/Observer.min.js"></script>
+
+  <!-- Import map: shims expose GSAP globals as ES modules -->
+  <script type="importmap">
+    {
+      "imports": {
+        "gsap": "./gsap-shim.js",
+        "gsap/dist/Observer": "./gsap-observer-shim.js"
+      }
+    }
+  </script>
+
+  <script type="module">
+    // Import from the bundled browser version
+    import { initMarquee, createMarquee } from './dist/marquee.browser.js';
+
+    // Initialize all marquees (async - waits for images to load)
+    async function init() {
+      // Create the hover marquee separately with pauseOnHover option
+      const hoverMarquee = await createMarquee('#hover-marquee', { pauseOnHover: true });
+
+      // Initialize all other marquees (reads direction/speed from data attributes)
+      const marquees = await initMarquee();
+      console.log('Marquee instances initialized:', marquees.length);
+
+      // Update clone count display for first marquee
+      const firstMarquee = marquees[0];
+      if (firstMarquee) {
+        const updateCloneCount = () => {
+          const cloneCountEl = document.getElementById('clone-count-1');
+          const track = firstMarquee.element.parentElement;
+          const clones = track?.querySelectorAll('[data-marquee-clone]').length || 0;
+          if (cloneCountEl) {
+            cloneCountEl.textContent = `Clones: ${clones} (${clones + 1} total wrappers)`;
+          }
+        };
+        updateCloneCount();
+        window.addEventListener('resize', () => setTimeout(updateCloneCount, 200));
+      }
+
+      return marquees;
+    }
+
+    const marquees = await init();
+
+    // Get the controlled marquee instance
+    const controlledMarquee = marquees.find(m => m.element.id === 'controlled-marquee');
+
+    // Control buttons
+    const pauseBtn = document.getElementById('pause-btn');
+    const resumeBtn = document.getElementById('resume-btn');
+    const toggleDirectionBtn = document.getElementById('toggle-direction');
+    const speedSlider = document.getElementById('speed-slider');
+    const speedValue = document.getElementById('speed-value');
+    const statusDot = document.getElementById('status-dot');
+    const statusText = document.getElementById('status-text');
+
+    function updateStatus() {
+      if (controlledMarquee?.isPaused()) {
+        statusDot.classList.add('paused');
+        statusText.textContent = 'Paused';
+      } else {
+        statusDot.classList.remove('paused');
+        statusText.textContent = 'Playing';
+      }
+    }
+
+    pauseBtn.addEventListener('click', () => {
+      controlledMarquee?.pause();
+      updateStatus();
+    });
+
+    resumeBtn.addEventListener('click', () => {
+      controlledMarquee?.resume();
+      updateStatus();
+    });
+
+    toggleDirectionBtn.addEventListener('click', () => {
+      if (!controlledMarquee) return;
+      const newDirection = controlledMarquee.getDirection() === 'ltr' ? 'rtl' : 'ltr';
+      controlledMarquee.setDirection(newDirection);
+      toggleDirectionBtn.textContent = `Direction: ${newDirection.toUpperCase()}`;
+    });
+
+    speedSlider.addEventListener('input', (e) => {
+      const speed = parseFloat(e.target.value);
+      controlledMarquee?.setSpeed(speed);
+      speedValue.textContent = `${speed}x`;
+    });
+  </script>
+</body>
+</html>
