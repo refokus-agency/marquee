@@ -3,6 +3,7 @@ import { defineConfig } from 'vitest/config';
 
 export default defineConfig(({ mode }) => ({
   build: {
+    emptyOutDir: false,
     minify: mode === 'production' ? 'esbuild' : false,
     sourcemap: mode === 'development',
     lib: {
