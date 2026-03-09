@@ -14,7 +14,6 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
-    environment: Production
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -40,6 +39,7 @@ jobs:
           extra_plugins: |
             @semantic-release/changelog
             @semantic-release/git
+            @semantic-release/exec
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GH_PAT_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GH_PAT_TOKEN }}
