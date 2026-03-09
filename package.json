@@ -36,7 +36,7 @@
   "homepage": "https://github.com/refokus-agency/marquee#readme",
   "scripts": {
     "build": "tsc && npm run build:browser",
-    "build:browser": "esbuild src/index.ts --bundle --format=esm --external:gsap --external:gsap/dist/Observer --outfile=dist/marquee.browser.js",
+    "build:browser": "vite build",
     "build:clean": "rm -rf dist && npm run build",
     "build:watch": "tsc --watch",
     "prepublishOnly": "npm run check-types && npm run lint && npm run build:clean",
