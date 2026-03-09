@@ -12,7 +12,7 @@ export default defineConfig(({ mode }) => ({
       formats: ['es'],
     },
     rollupOptions: {
-      external: [],
+      external: ['gsap', 'gsap/dist/Observer'],
     },
   },
   test: {
