@@ -2,7 +2,7 @@ import { gsap } from 'gsap';
 import { Observer } from 'gsap/dist/Observer';
 
 import type { MarqueeDirection, MarqueeOptions } from './types.ts';
-import { debounce, waitForImages } from './utils.ts';
+import { debounce, waitForImages, waitForViewport } from './utils.ts';
 
 gsap.registerPlugin(Observer);
 
@@ -88,6 +88,21 @@ export class Marquee {
   }
 
   private async initialize(): Promise<void> {
+    // Wait until the container is visible in the viewport before loading images.
+    // This preserves lazy-loading for below-fold marquees while ensuring images
+    // load before we measure dimensions.
+    await waitForViewport(this.container);
+
+    if (this.destroyed) return;
+
+    // Force any lazy images that haven't loaded yet to load eagerly.
+    // At this point the marquee is in the viewport, so bandwidth is justified.
+    this.element.querySelectorAll<HTMLImageElement>('img').forEach((img) => {
+      if (!img.complete && img.loading === 'lazy') {
+        img.loading = 'eager';
+      }
+    });
+
     await waitForImages(this.element);
 
     if (this.destroyed) return;
