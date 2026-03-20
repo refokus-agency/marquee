@@ -2,7 +2,7 @@ import { gsap } from 'gsap';
 import { Observer } from 'gsap/dist/Observer';
 
 import type { MarqueeDirection, MarqueeOptions } from './types.ts';
-import { debounce, waitForImages } from './utils.ts';
+import { debounce, waitForImages, waitForViewport } from './utils.ts';
 
 gsap.registerPlugin(Observer);
 
@@ -53,6 +53,7 @@ export class Marquee {
   private originalWidth: number = 0;
   private clones: HTMLElement[] = [];
 
+  private viewportController: AbortController | null = null;
   private tickerCallback: ((time: number, deltaTime: number) => void) | null =
     null;
   private observer: Observer | null = null;
@@ -88,6 +89,23 @@ export class Marquee {
   }
 
   private async initialize(): Promise<void> {
+    // Wait until the container is visible in the viewport before loading images.
+    // This preserves lazy-loading for below-fold marquees while ensuring images
+    // load before we measure dimensions.
+    this.viewportController = new AbortController();
+    await waitForViewport(this.container, this.viewportController.signal);
+    this.viewportController = null;
+
+    if (this.destroyed) return;
+
+    // Force any lazy images that haven't loaded yet to load eagerly.
+    // At this point the marquee is in the viewport, so bandwidth is justified.
+    this.element.querySelectorAll<HTMLImageElement>('img').forEach((img) => {
+      if (!img.complete && img.loading === 'lazy') {
+        img.loading = 'eager';
+      }
+    });
+
     await waitForImages(this.element);
 
     if (this.destroyed) return;
@@ -259,6 +277,9 @@ export class Marquee {
     if (this.destroyed) return;
 
     this.destroyed = true;
+
+    this.viewportController?.abort();
+    this.viewportController = null;
 
     // Remove initialization marker
     this.element.removeAttribute('data-marquee-initialized');

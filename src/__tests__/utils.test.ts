@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { debounce, waitForImages } from '../utils.ts';
+import { debounce, waitForImages, waitForViewport } from '../utils.ts';
 
 describe('debounce', () => {
   beforeEach(() => {
@@ -44,6 +44,76 @@ describe('debounce', () => {
     vi.advanceTimersByTime(100);
 
     expect(fn).toHaveBeenCalledWith('arg1', 'arg2');
+  });
+});
+
+describe('waitForViewport', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('should resolve immediately when IntersectionObserver is not available', async () => {
+    vi.stubGlobal('IntersectionObserver', undefined);
+    const element = document.createElement('div');
+    await expect(waitForViewport(element)).resolves.toBeUndefined();
+  });
+
+  it('should resolve when observer fires with isIntersecting true', async () => {
+    type IOCallback = (entries: IntersectionObserverEntry[]) => void;
+    let capturedCallback: IOCallback | null = null;
+
+    const mockObserver = {
+      observe: vi.fn(),
+      disconnect: vi.fn(),
+    };
+
+    vi.stubGlobal(
+      'IntersectionObserver',
+      vi.fn((cb: IOCallback) => {
+        capturedCallback = cb;
+        return mockObserver;
+      }),
+    );
+
+    const element = document.createElement('div');
+    const promise = waitForViewport(element);
+
+    expect(mockObserver.observe).toHaveBeenCalledWith(element);
+
+    capturedCallback!([{ isIntersecting: true } as IntersectionObserverEntry]);
+
+    await expect(promise).resolves.toBeUndefined();
+    expect(mockObserver.disconnect).toHaveBeenCalled();
+  });
+
+  it('should not resolve when observer fires with isIntersecting false', async () => {
+    type IOCallback = (entries: IntersectionObserverEntry[]) => void;
+    let capturedCallback: IOCallback | null = null;
+
+    const mockObserver = {
+      observe: vi.fn(),
+      disconnect: vi.fn(),
+    };
+
+    vi.stubGlobal(
+      'IntersectionObserver',
+      vi.fn((cb: IOCallback) => {
+        capturedCallback = cb;
+        return mockObserver;
+      }),
+    );
+
+    const element = document.createElement('div');
+    const promise = waitForViewport(element);
+
+    capturedCallback!([{ isIntersecting: false } as IntersectionObserverEntry]);
+
+    const result = await Promise.race([
+      promise.then(() => 'resolved'),
+      Promise.resolve('pending'),
+    ]);
+    expect(result).toBe('pending');
+    expect(mockObserver.disconnect).not.toHaveBeenCalled();
   });
 });
 
