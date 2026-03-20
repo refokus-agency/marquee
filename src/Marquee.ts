@@ -53,6 +53,7 @@ export class Marquee {
   private originalWidth: number = 0;
   private clones: HTMLElement[] = [];
 
+  private viewportController: AbortController | null = null;
   private tickerCallback: ((time: number, deltaTime: number) => void) | null =
     null;
   private observer: Observer | null = null;
@@ -91,7 +92,9 @@ export class Marquee {
     // Wait until the container is visible in the viewport before loading images.
     // This preserves lazy-loading for below-fold marquees while ensuring images
     // load before we measure dimensions.
-    await waitForViewport(this.container);
+    this.viewportController = new AbortController();
+    await waitForViewport(this.container, this.viewportController.signal);
+    this.viewportController = null;
 
     if (this.destroyed) return;
 
@@ -274,6 +277,9 @@ export class Marquee {
     if (this.destroyed) return;
 
     this.destroyed = true;
+
+    this.viewportController?.abort();
+    this.viewportController = null;
 
     // Remove initialization marker
     this.element.removeAttribute('data-marquee-initialized');
