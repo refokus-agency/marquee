@@ -22,6 +22,8 @@ const DEFAULT_CONFIG: Required<MarqueeConfig> = {
   itemSelector: '[data-marquee-item]',
   directionAttribute: 'data-marquee-direction',
   speedAttribute: 'data-marquee-speed',
+  draggableAttribute: 'data-marquee-draggable',
+  pauseOnHoverAttribute: 'data-marquee-pause-on-hover',
 };
 
 /**
@@ -42,6 +44,8 @@ export async function initMarquee(
     itemSelector: _itemSelector,
     directionAttribute,
     speedAttribute,
+    draggableAttribute,
+    pauseOnHoverAttribute,
     ...defaultOptions
   } = mergedConfig;
 
@@ -59,11 +63,21 @@ export async function initMarquee(
       directionAttribute,
     ) as MarqueeDirection | null;
     const elementSpeed = wrapper.getAttribute(speedAttribute);
+    const elementDraggable = wrapper.getAttribute(draggableAttribute);
+    const elementPauseOnHover = wrapper.getAttribute(pauseOnHoverAttribute);
 
     const options: MarqueeOptions = {
       ...defaultOptions,
       direction: elementDirection || defaultOptions.direction,
       speed: elementSpeed ? parseFloat(elementSpeed) : defaultOptions.speed,
+      draggable:
+        elementDraggable !== null
+          ? elementDraggable !== 'false'
+          : defaultOptions.draggable,
+      pauseOnHover:
+        elementPauseOnHover !== null
+          ? elementPauseOnHover !== 'false'
+          : defaultOptions.pauseOnHover,
     };
 
     const promise = Marquee.create(wrapper, options).catch((error) => {

@@ -65,4 +65,16 @@ export interface MarqueeConfig extends MarqueeOptions {
    * @default 'data-marquee-speed'
    */
   speedAttribute?: string;
+
+  /**
+   * Attribute name to read draggable from the element
+   * @default 'data-marquee-draggable'
+   */
+  draggableAttribute?: string;
+
+  /**
+   * Attribute name to read pauseOnHover from the element
+   * @default 'data-marquee-pause-on-hover'
+   */
+  pauseOnHoverAttribute?: string;
 }
