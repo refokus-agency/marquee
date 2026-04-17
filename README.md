@@ -1,16 +1,17 @@
 # @refokus-agency/marquee
 
-A GSAP-powered infinite marquee/carousel component for smooth, continuous scrolling animations with drag interaction support.
+A GSAP-powered infinite marquee component for smooth, continuous scrolling animations — horizontal and vertical.
 
 ## Features
 
 - Infinite seamless loop animation
 - **Waits for images to load** before calculating dimensions
-- Dynamic cloning based on container width (auto add/remove on resize)
-- Configurable scroll direction (LTR/RTL)
+- Deferred init — waits until the container enters the viewport (lazy-load friendly)
+- Horizontal (`ltr` / `rtl`) and vertical (`ttb` / `btt`) scroll directions
 - Adjustable scroll speed
-- Drag/touch interaction support
+- Optional drag/touch interaction
 - Pause on hover option
+- Dynamic cloning based on container size (auto add/remove on resize)
 - Full TypeScript support
 - Programmatic control (pause, resume, destroy)
 - Debounced resize handling (150ms)
@@ -26,79 +27,117 @@ A GSAP-powered infinite marquee/carousel component for smooth, continuous scroll
 npm install @refokus-agency/marquee gsap
 ```
 
+---
+
 ## Usage
 
-### HTML Setup
+### HTML Structure
 
-The marquee requires a **3-level structure**:
+The marquee requires a strict **3-level DOM structure**:
 
-1. **Container** (grandparent): `overflow: hidden`, `max-width: 100%` - clips content and provides width for calculations
-2. **Track** (parent): `display: flex`, `width: max-content` - receives the transform animation
-3. **Wrapper** `[data-marquee]`: gets cloned to fill the track seamlessly
+| Level | Role | Description |
+|-------|------|-------------|
+| Grandparent | **Container** | Clips overflow, provides size for clone calculations |
+| Parent | **Track** | Receives the GSAP transform |
+| Child | **Wrapper** `[data-marquee]` | Gets cloned to fill the track seamlessly |
+
+#### Horizontal (LTR / RTL)
 
 ```html
-<!-- Container: overflow hidden, used for width calculation -->
 <div class="marquee-container">
-  <!-- Track: gets the transform applied -->
   <div class="marquee-track">
-    <!-- Wrapper: gets cloned to fill the track -->
     <div data-marquee class="marquee-wrapper">
       <div data-marquee-item>Item 1</div>
       <div data-marquee-item>Item 2</div>
       <div data-marquee-item>Item 3</div>
     </div>
-    <!-- Clones are automatically appended here as siblings -->
+    <!-- clones are automatically appended here -->
   </div>
 </div>
 ```
 
-Add the required CSS:
-
 ```css
-/* Container - clips overflow and defines visible width */
 .marquee-container {
   max-width: 100%;
   overflow: hidden;
 }
 
-/* Track - flex container that receives transform */
 .marquee-track {
   display: flex;
   width: max-content;
 }
 
-/* Wrapper - gets cloned, must not shrink */
 .marquee-wrapper {
   display: flex;
   flex-shrink: 0;
 }
 
-/* Items - must not shrink */
 [data-marquee-item] {
   flex-shrink: 0;
 }
 ```
+
+#### Vertical (TTB / BTT)
+
+The container needs a **fixed height**. The track stacks items in a column.
+
+```html
+<div class="marquee-container-vertical">
+  <div class="marquee-track-vertical">
+    <div data-marquee data-marquee-direction="ttb" class="marquee-wrapper-vertical">
+      <div data-marquee-item>Item 1</div>
+      <div data-marquee-item>Item 2</div>
+      <div data-marquee-item>Item 3</div>
+    </div>
+  </div>
+</div>
+```
+
+```css
+.marquee-container-vertical {
+  overflow: hidden;
+  height: 400px; /* required — defines the visible window */
+}
+
+.marquee-track-vertical {
+  display: flex;
+  flex-direction: column;
+  height: max-content;
+}
+
+.marquee-wrapper-vertical {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+}
+
+[data-marquee-item] {
+  flex-shrink: 0;
+}
+```
+
+---
 
 ### Basic Usage
 
 ```typescript
 import { initMarquee } from '@refokus-agency/marquee';
 
-// Initialize all marquees on the page (async - waits for images)
+// Reads direction/speed/draggable/pauseOnHover from data attributes
 const marquees = await initMarquee();
 ```
 
-### With Configuration
+### With Options
 
 ```typescript
 import { initMarquee } from '@refokus-agency/marquee';
 
 const marquees = await initMarquee({
-  speed: 2,              // Scroll speed multiplier (default: 1)
-  direction: 'rtl',      // Scroll direction: 'ltr' or 'rtl' (default: 'ltr')
-  draggable: true,       // Enable drag interaction (default: true)
-  pauseOnHover: true,    // Pause when mouse hovers (default: false)
-  dragEase: 0.5,         // Drag easing duration in seconds (default: 0.5)
+  speed: 2,               // Speed multiplier (default: 1)
+  direction: 'rtl',       // 'ltr' | 'rtl' | 'ttb' | 'btt' (default: 'ltr')
+  draggable: true,        // Enable drag/touch (default: false)
+  pauseOnHover: true,     // Pause on hover (default: false)
+  dragEase: 0.5,          // Drag easing in seconds (default: 0.5)
 });
 ```
 
@@ -106,8 +145,8 @@ const marquees = await initMarquee({
 
 ```typescript
 const marquees = await initMarquee({
-  wrapperSelector: '.my-carousel',
-  itemSelector: '.carousel-item',
+  wrapperSelector: '.my-marquee',
+  itemSelector: '.my-item',
 });
 ```
 
@@ -116,24 +155,22 @@ const marquees = await initMarquee({
 ```typescript
 import { Marquee } from '@refokus-agency/marquee';
 
-const element = document.querySelector('[data-marquee]');
+const el = document.querySelector('[data-marquee]');
 
-// Option 1: Using static async factory (recommended)
-const marquee = await Marquee.create(element, {
+// Recommended: static async factory (waits for images)
+const marquee = await Marquee.create(el, {
   speed: 1.5,
-  direction: 'rtl',
-  pauseOnHover: true,
+  direction: 'ttb',
 });
 
-// Option 2: Using constructor with ready promise
-const marquee = new Marquee(element, { speed: 1.5 });
-await marquee.ready; // Wait for images and initialization
+// Alternative: constructor + ready promise
+const marquee = new Marquee(el, { speed: 1.5 });
+await marquee.ready;
 
-// Control the instance
 marquee.pause();
 marquee.resume();
 marquee.setSpeed(2);
-marquee.setDirection('ltr');
+marquee.setDirection('btt');
 marquee.destroy();
 ```
 
@@ -142,15 +179,11 @@ marquee.destroy();
 ```typescript
 import { createMarquee } from '@refokus-agency/marquee';
 
-// By selector (returns null if not found)
-const marquee = await createMarquee('#my-marquee', {
-  speed: 1.5,
-  pauseOnHover: true,
-});
+// By CSS selector
+const marquee = await createMarquee('#my-marquee', { speed: 1.5 });
 
 // By element reference
-const element = document.querySelector('.marquee');
-const marquee = await createMarquee(element, { speed: 2 });
+const marquee = await createMarquee(element, { direction: 'ttb' });
 ```
 
 ### Instance Control
@@ -158,118 +191,225 @@ const marquee = await createMarquee(element, { speed: 2 });
 ```typescript
 const [marquee] = await initMarquee();
 
-// Pause/resume
 marquee.pause();
 marquee.resume();
-marquee.isPaused(); // boolean
+marquee.isPaused();       // boolean
 
-// Get/set settings
 marquee.setSpeed(2);
-marquee.getSpeed(); // 2
+marquee.getSpeed();       // 2
+
 marquee.setDirection('rtl');
-marquee.getDirection(); // 'rtl'
+marquee.getDirection();   // 'rtl'
 
-// Check state
-marquee.isReady();     // true (after images loaded)
-marquee.isDestroyed(); // false
+marquee.isReady();        // true after images loaded
+marquee.isDestroyed();    // false
 
-// Cleanup
-marquee.destroy();
+marquee.destroy();        // removes clones, listeners, resets transform
 ```
 
 ### Data Attributes
 
-You can also configure individual marquees via HTML attributes:
+Configure each marquee instance directly in HTML — no JS config needed when using `initMarquee()`.
 
 ```html
-<!-- RTL direction with speed of 2 -->
-<div class="marquee-container">
-  <div class="marquee-track">
-    <div data-marquee data-marquee-direction="rtl" data-marquee-speed="2" class="marquee-wrapper">
+<!-- Vertical top-to-bottom, slow speed, pause on hover -->
+<div class="container">
+  <div class="track">
+    <div
+      data-marquee
+      data-marquee-direction="ttb"
+      data-marquee-speed="0.5"
+      data-marquee-pause-on-hover="true"
+    >
       <div data-marquee-item>Item 1</div>
       <div data-marquee-item>Item 2</div>
     </div>
   </div>
 </div>
+
+<!-- RTL with drag enabled -->
+<div class="container">
+  <div class="track">
+    <div
+      data-marquee
+      data-marquee-direction="rtl"
+      data-marquee-draggable="true"
+    >
+      <div data-marquee-item>Item A</div>
+      <div data-marquee-item>Item B</div>
+    </div>
+  </div>
+</div>
 ```
 
-### Responsive Cloning
+**All supported attributes:**
 
-The component automatically:
-- Calculates how many clones are needed based on container width
-- Adds/removes clones on window resize (debounced at 150ms)
-- Creates seamless infinite loops by cloning the entire wrapper element
+| Attribute | Values | Default |
+|-----------|--------|---------|
+| `data-marquee` | *(empty — marks the wrapper)* | — |
+| `data-marquee-direction` | `ltr` \| `rtl` \| `ttb` \| `btt` | `ltr` |
+| `data-marquee-speed` | any number, e.g. `2` | `1` |
+| `data-marquee-draggable` | `true` \| `false` | `false` |
+| `data-marquee-pause-on-hover` | `true` \| `false` | `false` |
+
+---
+
+## Webflow Setup
+
+### 1 — DOM Structure
+
+Build the 3-level div structure in the Designer:
+
+1. Add a **Div Block** → **Container** (the outermost wrapper)
+2. Inside it, add a **Div Block** → **Track**
+3. Inside the track, add a **Div Block** → **Wrapper** (this element gets cloned)
+4. Inside the wrapper, add your content items (logo images, cards, text, etc.)
+
+### 2 — Custom Attributes
+
+Select the **Wrapper** div, open **Element Settings → Custom Attributes**, and add:
+
+| Attribute | Value |
+|-----------|-------|
+| `data-marquee` | *(leave value empty)* |
+| `data-marquee-direction` | `ltr`, `rtl`, `ttb`, or `btt` |
+| `data-marquee-speed` | e.g. `2` |
+| `data-marquee-draggable` | `true` or `false` |
+| `data-marquee-pause-on-hover` | `true` or `false` |
+
+Only `data-marquee` is required. The others are optional and fall back to defaults.
+
+### 3 — CSS (Horizontal)
+
+In the **Style Panel**, apply these styles to each level:
+
+**Container div**
+- Overflow: Hidden
+
+**Track div**
+- Display: Flex
+- Width: Max Content
+
+**Wrapper div**
+- Display: Flex
+- Flex Shrink: 0
+
+**Each item inside the wrapper**
+- Flex Shrink: 0
+
+### 3 — CSS (Vertical — TTB or BTT)
+
+**Container div**
+- Overflow: Hidden
+- Height: *(fixed value — e.g. `400px` or `60vh`)*
+
+**Track div**
+- Display: Flex
+- Flex Direction: Column
+- Height: Max Content
+
+**Wrapper div**
+- Display: Flex
+- Flex Direction: Column
+- Flex Shrink: 0
+
+**Each item inside the wrapper**
+- Flex Shrink: 0
+
+### 4 — Script Embed
+
+In **Project Settings → Custom Code**, paste before the `</body>` tag:
+
+```html
+<!-- GSAP (required peer dependency) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/Observer.min.js"></script>
+
+<!-- Marquee init -->
+<script>
+  window.addEventListener('DOMContentLoaded', async function () {
+    const { initMarquee } = await import('URL_TO_YOUR_HOSTED_BUNDLE/marquee.browser.js');
+    await initMarquee();
+  });
+</script>
+```
+
+Replace `URL_TO_YOUR_HOSTED_BUNDLE` with the URL where you host the compiled browser bundle (`dist/marquee.browser.js`).
+
+> `initMarquee()` scans the page for `[data-marquee]` elements and reads all configuration from their data attributes automatically.
+
+---
 
 ## API Reference
 
-### `Marquee` Class
+### `MarqueeOptions`
 
-The main class for creating marquee instances. Waits for all images to load before calculating dimensions.
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `speed` | `number` | `1` | Animation speed multiplier |
+| `direction` | `'ltr' \| 'rtl' \| 'ttb' \| 'btt'` | `'ltr'` | Scroll direction |
+| `draggable` | `boolean` | `false` | Enable drag/touch interaction |
+| `pauseOnHover` | `boolean` | `false` | Pause animation on hover |
+| `dragEase` | `number` | `0.5` | Drag easing duration in seconds |
 
-```typescript
-// Using static factory (recommended)
-const marquee = await Marquee.create(element: HTMLElement, options?: MarqueeOptions);
+### `MarqueeConfig` (extends `MarqueeOptions`)
 
-// Using constructor
-const marquee = new Marquee(element: HTMLElement, options?: MarqueeOptions);
-await marquee.ready; // Wait for initialization
-```
+Additional options for `initMarquee()`:
 
-#### Instance Methods
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `wrapperSelector` | `string` | `'[data-marquee]'` | Selector for wrapper elements |
+| `itemSelector` | `string` | `'[data-marquee-item]'` | Selector for items inside wrapper |
+| `directionAttribute` | `string` | `'data-marquee-direction'` | Attribute name for direction |
+| `speedAttribute` | `string` | `'data-marquee-speed'` | Attribute name for speed |
+| `draggableAttribute` | `string` | `'data-marquee-draggable'` | Attribute name for draggable |
+| `pauseOnHoverAttribute` | `string` | `'data-marquee-pause-on-hover'` | Attribute name for pauseOnHover |
+
+### `Marquee` Instance Methods
 
 | Method | Return | Description |
 |--------|--------|-------------|
 | `pause()` | `void` | Pause the animation |
 | `resume()` | `void` | Resume the animation |
 | `isPaused()` | `boolean` | Check if paused |
-| `isReady()` | `boolean` | Check if initialized (images loaded) |
+| `isReady()` | `boolean` | True after images loaded and init complete |
 | `setSpeed(speed)` | `void` | Update scroll speed |
 | `getSpeed()` | `number` | Get current speed |
-| `setDirection(dir)` | `void` | Update scroll direction |
+| `setDirection(dir)` | `void` | Update scroll direction (same axis only) |
 | `getDirection()` | `MarqueeDirection` | Get current direction |
 | `isDestroyed()` | `boolean` | Check if destroyed |
-| `destroy()` | `void` | Clean up and remove |
+| `destroy()` | `void` | Clean up clones, listeners, and transforms |
 
-#### Instance Properties
+### `Marquee` Instance Properties
 
 | Property | Type | Description |
 |----------|------|-------------|
 | `element` | `HTMLElement` | The wrapper element (readonly) |
 | `ready` | `Promise<void>` | Resolves when images loaded and initialized |
 
-### `initMarquee(config?): Promise<Marquee[]>`
+### Functions
 
-Initialize marquees on all matching elements. Returns a promise that resolves when all instances are ready.
+```typescript
+// Initialize all matching elements on the page
+initMarquee(config?: MarqueeConfig): Promise<Marquee[]>
 
-#### Config Options
+// Create a single instance by element or selector
+createMarquee(element: HTMLElement | string, options?: MarqueeOptions): Promise<Marquee | null>
+```
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `wrapperSelector` | `string` | `'[data-marquee]'` | Selector for wrapper elements |
-| `itemSelector` | `string` | `'[data-marquee-item]'` | Selector for items inside wrapper |
-| `speed` | `number` | `1` | Animation speed multiplier |
-| `direction` | `'ltr' \| 'rtl'` | `'ltr'` | Scroll direction |
-| `draggable` | `boolean` | `true` | Enable drag/touch interaction |
-| `pauseOnHover` | `boolean` | `false` | Pause animation on hover |
-| `dragEase` | `number` | `0.5` | Drag easing duration (seconds) |
-| `directionAttribute` | `string` | `'data-marquee-direction'` | Attribute for direction |
-| `speedAttribute` | `string` | `'data-marquee-speed'` | Attribute for speed |
-
-### `createMarquee(element, options?): Promise<Marquee | null>`
-
-Factory function to create a marquee on a single element. Returns a promise that resolves to the instance or `null` if the element doesn't exist.
+---
 
 ## Development
 
-### Available Scripts
-
 ```bash
-npm run build          # Compile TypeScript
-npm run build:clean    # Clean and rebuild
-npm run build:watch    # Watch mode
+npm run build          # Compile TypeScript + browser bundle
+npm run build:clean    # Clean dist and rebuild
+npm run build:watch    # Vite watch mode
+npm run build:watch:types  # TypeScript watch mode
 npm test               # Run tests
-npm run lint           # Lint code
-npm run format         # Format code
+npm run check-types    # TypeScript type check
+npm run lint           # Lint and auto-fix
+npm run format         # Prettier format
 npm run commit         # Conventional commit wizard
 ```
 

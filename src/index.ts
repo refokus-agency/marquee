@@ -15,7 +15,7 @@ export type {
 const DEFAULT_CONFIG: Required<MarqueeConfig> = {
   speed: 1,
   direction: 'ltr',
-  draggable: true,
+  draggable: false,
   dragEase: 0.5,
   pauseOnHover: false,
   wrapperSelector: '[data-marquee]',
