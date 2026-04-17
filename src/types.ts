@@ -1,7 +1,7 @@
 /**
  * Direction of the marquee scroll
  */
-export type MarqueeDirection = 'ltr' | 'rtl';
+export type MarqueeDirection = 'ltr' | 'rtl' | 'ttb' | 'btt';
 
 /**
  * Configuration options for a single Marquee instance
@@ -14,14 +14,15 @@ export interface MarqueeOptions {
   speed?: number;
 
   /**
-   * Direction of the scroll: 'ltr' (left-to-right) or 'rtl' (right-to-left)
+   * Direction of the scroll: 'ltr' (left-to-right), 'rtl' (right-to-left),
+   * 'ttb' (top-to-bottom), or 'btt' (bottom-to-top)
    * @default 'ltr'
    */
   direction?: MarqueeDirection;
 
   /**
    * Enable drag/touch interaction to control the marquee
-   * @default true
+   * @default false
    */
   draggable?: boolean;
 

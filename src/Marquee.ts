@@ -9,7 +9,7 @@ gsap.registerPlugin(Observer);
 const DEFAULT_OPTIONS: Required<MarqueeOptions> = {
   speed: 1,
   direction: 'ltr',
-  draggable: true,
+  draggable: false,
   dragEase: 0.5,
   pauseOnHover: false,
 };
@@ -50,7 +50,7 @@ export class Marquee {
   private destroyed: boolean = false;
   private initialized: boolean = false;
   private position: number = 0;
-  private originalWidth: number = 0;
+  private originalSize: number = 0;
   private clones: HTMLElement[] = [];
 
   private viewportController: AbortController | null = null;
@@ -60,7 +60,7 @@ export class Marquee {
   private resizeHandler: (() => void) | null = null;
   private boundMouseEnter: (() => void) | null = null;
   private boundMouseLeave: (() => void) | null = null;
-  private xTo: gsap.QuickToFunc | null = null;
+  private moveTo: gsap.QuickToFunc | null = null;
   private wrap: ((value: number) => number) | null = null;
 
   /**
@@ -113,9 +113,11 @@ export class Marquee {
     // Mark element as initialized to prevent double-initialization
     this.element.setAttribute('data-marquee-initialized', 'true');
 
-    this.originalWidth = this.element.offsetWidth;
-    this.wrap = gsap.utils.wrap(-this.originalWidth, 0);
-    this.xTo = this.createQuickTo();
+    this.originalSize = this.isVertical()
+      ? this.element.offsetHeight
+      : this.element.offsetWidth;
+    this.wrap = gsap.utils.wrap(-this.originalSize, 0);
+    this.moveTo = this.createQuickTo();
 
     this.updateClones();
     this.setupAnimation();
@@ -142,13 +144,19 @@ export class Marquee {
     return container;
   }
 
+  private isVertical(): boolean {
+    return this.direction === 'ttb' || this.direction === 'btt';
+  }
+
   private createQuickTo(): gsap.QuickToFunc {
-    return gsap.quickTo(this.track, 'x', {
+    const axis = this.isVertical() ? 'y' : 'x';
+    const modifiers: Record<string, (value: number) => string> = {
+      [axis]: gsap.utils.unitize(this.wrap!),
+    };
+    return gsap.quickTo(this.track, axis, {
       duration: this.options.dragEase,
       ease: 'power3',
-      modifiers: {
-        x: gsap.utils.unitize(this.wrap!),
-      },
+      modifiers,
     });
   }
 
@@ -156,10 +164,12 @@ export class Marquee {
    * Calculates and manages clones to fill 2x container width for seamless looping
    */
   private updateClones(): void {
-    const containerWidth = this.container.clientWidth;
+    const containerSize = this.isVertical()
+      ? this.container.clientHeight
+      : this.container.clientWidth;
     const wrappersNeeded = Math.max(
       2,
-      Math.ceil((containerWidth * 2) / this.originalWidth) + 1,
+      Math.ceil((containerSize * 2) / this.originalSize) + 1,
     );
     const clonesNeeded = wrappersNeeded - 1;
 
@@ -179,11 +189,12 @@ export class Marquee {
 
   private setupAnimation(): void {
     this.tickerCallback = (_time: number, deltaTime: number) => {
-      if (this.paused || this.destroyed || !this.xTo) return;
+      if (this.paused || this.destroyed || !this.moveTo) return;
 
-      const directionMultiplier = this.direction === 'rtl' ? -1 : 1;
+      const directionMultiplier =
+        this.direction === 'rtl' || this.direction === 'ttb' ? -1 : 1;
       this.position -= (deltaTime / 15) * this.speed * directionMultiplier;
-      this.xTo(this.position);
+      this.moveTo(this.position);
     };
 
     gsap.ticker.add(this.tickerCallback);
@@ -192,13 +203,14 @@ export class Marquee {
   private setupDragInteraction(): void {
     if (!this.options.draggable) return;
 
+    const vertical = this.isVertical();
     this.observer = Observer.create({
       target: this.track,
       type: 'pointer,touch',
       onDrag: (self) => {
-        if (!this.xTo) return;
-        this.position += self.deltaX;
-        this.xTo(this.position);
+        if (!this.moveTo) return;
+        this.position += vertical ? self.deltaY : self.deltaX;
+        this.moveTo(this.position);
       },
     });
   }
@@ -224,14 +236,16 @@ export class Marquee {
   private handleResize(): void {
     if (this.destroyed || !this.initialized) return;
 
-    this.originalWidth = this.element.offsetWidth;
+    this.originalSize = this.isVertical()
+      ? this.element.offsetHeight
+      : this.element.offsetWidth;
     this.updateClones();
 
-    this.wrap = gsap.utils.wrap(-this.originalWidth, 0);
-    this.xTo = this.createQuickTo();
+    this.wrap = gsap.utils.wrap(-this.originalSize, 0);
+    this.moveTo = this.createQuickTo();
 
     this.position = this.wrap(this.position);
-    this.xTo(this.position);
+    this.moveTo(this.position);
   }
 
   public pause(): void {
@@ -311,6 +325,6 @@ export class Marquee {
     this.clones.forEach((clone) => clone.remove());
     this.clones = [];
 
-    gsap.set(this.track, { x: 0 });
+    gsap.set(this.track, this.isVertical() ? { y: 0 } : { x: 0 });
   }
 }
