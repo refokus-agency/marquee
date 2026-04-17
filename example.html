@@ -47,34 +47,34 @@
       font-size: 0.9rem;
     }
 
-    /*
+    /* ─── HORIZONTAL MARQUEE ──────────────────────────────────────────────────
      * 3-LEVEL STRUCTURE:
-     * 1. Container (grandparent): overflow: hidden, max-width: 100% - for width calculation
-     * 2. Track (parent): display: flex, width: max-content - gets the transform
-     * 3. Wrapper [data-marquee]: gets cloned to fill the track
-     */
+     * 1. Container (grandparent): overflow hidden, max-width 100% — clips content
+     * 2. Track (parent): display flex, width max-content — receives transform
+     * 3. Wrapper [data-marquee]: display flex, flex-shrink 0 — gets cloned
+     * ─────────────────────────────────────────────────────────────────────── */
 
-    /* Container - overflow hidden, used for width calculation */
-    .c-logos-marquee-container {
+    /* Container */
+    .c-marquee-container {
       max-width: 100%;
       overflow: hidden;
       padding: 1rem 0;
     }
 
-    /* Track - gets the transform applied */
-    .c-logos-marquee {
+    /* Track */
+    .c-marquee-track {
       display: flex;
       width: max-content;
     }
 
-    /* The wrapper that gets cloned */
-    .c-logos-marquee_wrapper {
+    /* Wrapper (gets cloned) */
+    .c-marquee-wrapper {
       display: flex;
       flex-shrink: 0;
     }
 
-    /* Logo Items */
-    .c-logos-marquee_logo-item {
+    /* Items */
+    .c-marquee-item {
       flex-shrink: 0;
       display: flex;
       align-items: center;
@@ -83,7 +83,7 @@
       height: 80px;
     }
 
-    .c-logo-marquee_logo {
+    .c-marquee-logo {
       height: 40px;
       width: auto;
       object-fit: contain;
@@ -92,29 +92,86 @@
       transition: all 0.3s ease;
     }
 
-    .c-logo-marquee_logo:hover {
+    .c-marquee-logo:hover {
       filter: grayscale(0%) brightness(1);
       opacity: 1;
     }
 
-    /* Text marquee styles */
+    /* ─── VERTICAL MARQUEE ────────────────────────────────────────────────────
+     * 3-LEVEL STRUCTURE (vertical):
+     * 1. Container: overflow hidden, fixed HEIGHT — clips content vertically
+     * 2. Track: display flex, flex-direction column, height max-content
+     * 3. Wrapper [data-marquee]: display flex, flex-direction column, flex-shrink 0
+     * ─────────────────────────────────────────────────────────────────────── */
+
+    /* Container — must have a fixed height */
+    .c-marquee-container-vertical {
+      overflow: hidden;
+      height: 320px;
+      padding: 0 1rem;
+    }
+
+    /* Track */
+    .c-marquee-track-vertical {
+      display: flex;
+      flex-direction: column;
+      height: max-content;
+    }
+
+    /* Wrapper (gets cloned) */
+    .c-marquee-wrapper-vertical {
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+    }
+
+    /* Vertical items */
+    .c-marquee-item-vertical {
+      flex-shrink: 0;
+      padding: 0.75rem 1.5rem;
+      font-size: 1.1rem;
+      font-weight: 600;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      white-space: nowrap;
+    }
+
+    /* Two-column layout for side-by-side vertical demos */
+    .vertical-demo-row {
+      display: flex;
+      gap: 2rem;
+    }
+
+    .vertical-demo-col {
+      flex: 1;
+    }
+
+    .vertical-demo-col-label {
+      font-size: 0.8rem;
+      color: #555;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 0.5rem;
+    }
+
+    /* ─── TEXT MARQUEE ────────────────────────────────────────────────────── */
+
     .c-text-marquee-container {
       max-width: 100%;
       overflow: hidden;
       padding: 2rem 0;
     }
 
-    .c-text-marquee {
+    .c-text-marquee-track {
       display: flex;
       width: max-content;
     }
 
-    .c-text-marquee_wrapper {
+    .c-text-marquee-wrapper {
       display: flex;
       flex-shrink: 0;
     }
 
-    .c-text-marquee_item {
+    .c-text-marquee-item {
       flex-shrink: 0;
       padding: 0 3rem;
       font-size: 4rem;
@@ -125,31 +182,32 @@
       -webkit-text-stroke: 1px rgba(255, 255, 255, 0.3);
     }
 
-    .c-text-marquee_item span {
+    .c-text-marquee-item span {
       color: #667eea;
       -webkit-text-stroke: 0;
     }
 
-    /* Card marquee styles */
+    /* ─── CARD MARQUEE ────────────────────────────────────────────────────── */
+
     .c-card-marquee-container {
       max-width: 100%;
       overflow: hidden;
       padding: 1rem 0;
     }
 
-    .c-card-marquee {
+    .c-card-marquee-track {
       display: flex;
       width: max-content;
     }
 
-    .c-card-marquee_wrapper {
+    .c-card-marquee-wrapper {
       display: flex;
       flex-shrink: 0;
       gap: 1.5rem;
-      padding-right: 1.5rem; /* Match gap for seamless loop */
+      padding-right: 1.5rem; /* match gap for seamless loop */
     }
 
-    .c-card-marquee_item {
+    .c-card-marquee-item {
       flex-shrink: 0;
       width: 300px;
       padding: 1.5rem;
@@ -158,19 +216,20 @@
       border: 1px solid rgba(255, 255, 255, 0.1);
     }
 
-    .c-card-marquee_item h3 {
+    .c-card-marquee-item h3 {
       font-size: 1.1rem;
       margin-bottom: 0.5rem;
       color: #667eea;
     }
 
-    .c-card-marquee_item p {
+    .c-card-marquee-item p {
       font-size: 0.85rem;
       color: #888;
       line-height: 1.5;
     }
 
-    /* Controls */
+    /* ─── CONTROLS ────────────────────────────────────────────────────────── */
+
     .controls {
       display: flex;
       gap: 1rem;
@@ -204,7 +263,6 @@
       box-shadow: 0 4px 20px rgba(102, 126, 234, 0.3);
     }
 
-    /* Status indicator */
     .status {
       display: inline-flex;
       align-items: center;
@@ -264,7 +322,7 @@
       font-size: 0.85rem;
     }
 
-    .resize-hint {
+    .info-banner {
       background: rgba(102, 126, 234, 0.1);
       border: 1px solid rgba(102, 126, 234, 0.3);
       padding: 1rem;
@@ -274,7 +332,7 @@
       color: #888;
     }
 
-    .resize-hint strong {
+    .info-banner strong {
       color: #667eea;
     }
 
@@ -288,33 +346,35 @@
 <body>
   <h1>Marquee Component Demo</h1>
 
-  <div class="resize-hint">
-    <strong>Resize the window</strong> to see the component dynamically add/remove clones to fill the viewport. 
-    The cloning is debounced (150ms) for performance. The entire <code>[data-marquee]</code> wrapper is cloned, not individual items.
+  <div class="info-banner">
+    <strong>Resize the window</strong> to see the component dynamically add/remove clones.
+    Cloning is debounced (150ms). The entire <code>[data-marquee]</code> wrapper is cloned, not individual items.
+    <br><br>
+    <strong>Default:</strong> <code>draggable: false</code> — enable drag per-instance via <code>data-marquee-draggable="true"</code> or the JS option.
   </div>
 
-  <!-- 1. Basic Logo Marquee (LTR) -->
+  <!-- ─── 1. LTR (default) ──────────────────────────────────────────────── -->
   <section class="section">
-    <h2 class="section-title">1. Basic Logo Marquee (LTR)</h2>
-    <p class="section-description">Default left-to-right movement with draggable interaction.</p>
-    
-    <!-- Container: overflow hidden, max-width 100% -->
-    <div class="c-logos-marquee-container">
-      <!-- Track: display flex, width max-content, gets transform -->
-      <div class="c-logos-marquee">
-        <!-- Wrapper: gets cloned -->
-        <div data-marquee class="c-logos-marquee_wrapper">
-          <div data-marquee-item class="c-logos-marquee_logo-item">
-            <img src="https://cdn.prod.website-files.com/67dd6fe7bd7e331b5970b9f4/67ec0bf2cd17b013740392ef_logo-32.avif" loading="lazy" alt="" class="c-logo-marquee_logo">
+    <h2 class="section-title">1. Left-to-Right (default)</h2>
+    <p class="section-description">
+      Default direction. No attributes needed beyond <code>data-marquee</code>.
+      CSS: container <code>overflow: hidden</code>, track <code>display: flex; width: max-content</code>.
+    </p>
+
+    <div class="c-marquee-container">
+      <div class="c-marquee-track">
+        <div data-marquee class="c-marquee-wrapper">
+          <div data-marquee-item class="c-marquee-item">
+            <img src="https://cdn.prod.website-files.com/67dd6fe7bd7e331b5970b9f4/67ec0bf2cd17b013740392ef_logo-32.avif" loading="lazy" alt="" class="c-marquee-logo">
           </div>
-          <div data-marquee-item class="c-logos-marquee_logo-item">
-            <img src="https://cdn.prod.website-files.com/67dd6fe7bd7e331b5970b9f4/67ec0bef67f6f414e2ce45ba_logo-14.avif" loading="lazy" alt="" class="c-logo-marquee_logo">
+          <div data-marquee-item class="c-marquee-item">
+            <img src="https://cdn.prod.website-files.com/67dd6fe7bd7e331b5970b9f4/67ec0bef67f6f414e2ce45ba_logo-14.avif" loading="lazy" alt="" class="c-marquee-logo">
           </div>
-          <div data-marquee-item class="c-logos-marquee_logo-item">
-            <img src="https://cdn.prod.website-files.com/67dd6fe7bd7e331b5970b9f4/67ec0bf14ac5ca412f10fc44_logo-24.avif" loading="lazy" alt="" class="c-logo-marquee_logo">
+          <div data-marquee-item class="c-marquee-item">
+            <img src="https://cdn.prod.website-files.com/67dd6fe7bd7e331b5970b9f4/67ec0bf14ac5ca412f10fc44_logo-24.avif" loading="lazy" alt="" class="c-marquee-logo">
           </div>
-          <div data-marquee-item class="c-logos-marquee_logo-item">
-            <img src="https://cdn.prod.website-files.com/67dd6fe7bd7e331b5970b9f4/67ec0bf274e3857aad694093_logo-35.avif" loading="lazy" alt="" class="c-logo-marquee_logo">
+          <div data-marquee-item class="c-marquee-item">
+            <img src="https://cdn.prod.website-files.com/67dd6fe7bd7e331b5970b9f4/67ec0bf274e3857aad694093_logo-35.avif" loading="lazy" alt="" class="c-marquee-logo">
           </div>
         </div>
       </div>
@@ -322,75 +382,127 @@
     <div class="clone-count" id="clone-count-1">Clones: calculating...</div>
   </section>
 
-  <!-- 2. RTL Marquee -->
+  <!-- ─── 2. RTL ────────────────────────────────────────────────────────── -->
   <section class="section">
-    <h2 class="section-title">2. Right-to-Left Marquee</h2>
-    <p class="section-description">Using <code>data-marquee-direction="rtl"</code> attribute.</p>
-    
-    <div class="c-logos-marquee-container">
-      <div class="c-logos-marquee">
-        <div data-marquee data-marquee-direction="rtl" class="c-logos-marquee_wrapper">
-          <div data-marquee-item class="c-logos-marquee_logo-item">
-            <img src="https://cdn.prod.website-files.com/67dd6fe7bd7e331b5970b9f4/67ec0bf2cd17b013740392ef_logo-32.avif" loading="lazy" alt="" class="c-logo-marquee_logo">
+    <h2 class="section-title">2. Right-to-Left</h2>
+    <p class="section-description">
+      Set <code>data-marquee-direction="rtl"</code> on the wrapper. Same horizontal CSS as LTR.
+    </p>
+
+    <div class="c-marquee-container">
+      <div class="c-marquee-track">
+        <div data-marquee data-marquee-direction="rtl" class="c-marquee-wrapper">
+          <div data-marquee-item class="c-marquee-item">
+            <img src="https://cdn.prod.website-files.com/67dd6fe7bd7e331b5970b9f4/67ec0bf2cd17b013740392ef_logo-32.avif" loading="lazy" alt="" class="c-marquee-logo">
           </div>
-          <div data-marquee-item class="c-logos-marquee_logo-item">
-            <img src="https://cdn.prod.website-files.com/67dd6fe7bd7e331b5970b9f4/67ec0bef67f6f414e2ce45ba_logo-14.avif" loading="lazy" alt="" class="c-logo-marquee_logo">
+          <div data-marquee-item class="c-marquee-item">
+            <img src="https://cdn.prod.website-files.com/67dd6fe7bd7e331b5970b9f4/67ec0bef67f6f414e2ce45ba_logo-14.avif" loading="lazy" alt="" class="c-marquee-logo">
           </div>
-          <div data-marquee-item class="c-logos-marquee_logo-item">
-            <img src="https://cdn.prod.website-files.com/67dd6fe7bd7e331b5970b9f4/67ec0bf14ac5ca412f10fc44_logo-24.avif" loading="lazy" alt="" class="c-logo-marquee_logo">
+          <div data-marquee-item class="c-marquee-item">
+            <img src="https://cdn.prod.website-files.com/67dd6fe7bd7e331b5970b9f4/67ec0bf14ac5ca412f10fc44_logo-24.avif" loading="lazy" alt="" class="c-marquee-logo">
           </div>
-          <div data-marquee-item class="c-logos-marquee_logo-item">
-            <img src="https://cdn.prod.website-files.com/67dd6fe7bd7e331b5970b9f4/67ec0bf274e3857aad694093_logo-35.avif" loading="lazy" alt="" class="c-logo-marquee_logo">
+          <div data-marquee-item class="c-marquee-item">
+            <img src="https://cdn.prod.website-files.com/67dd6fe7bd7e331b5970b9f4/67ec0bf274e3857aad694093_logo-35.avif" loading="lazy" alt="" class="c-marquee-logo">
           </div>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- 3. Fast Speed Marquee -->
+  <!-- ─── 3. Vertical (TTB + BTT side by side) ─────────────────────────── -->
   <section class="section">
-    <h2 class="section-title">3. Fast Speed Marquee</h2>
-    <p class="section-description">Using <code>data-marquee-speed="3"</code> attribute for 3x speed.</p>
-    
-    <div class="c-logos-marquee-container">
-      <div class="c-logos-marquee">
-        <div data-marquee data-marquee-speed="3" class="c-logos-marquee_wrapper">
-          <div data-marquee-item class="c-logos-marquee_logo-item">
-            <img src="https://cdn.prod.website-files.com/67dd6fe7bd7e331b5970b9f4/67ec0bf2cd17b013740392ef_logo-32.avif" loading="lazy" alt="" class="c-logo-marquee_logo">
+    <h2 class="section-title">3. Vertical — Top-to-Bottom &amp; Bottom-to-Top</h2>
+    <p class="section-description">
+      Set <code>data-marquee-direction="ttb"</code> or <code>"btt"</code> on the wrapper.
+      Vertical CSS: container needs a <strong>fixed height</strong> + <code>overflow: hidden</code>;
+      track uses <code>flex-direction: column; height: max-content</code>.
+    </p>
+
+    <div class="vertical-demo-row">
+      <!-- TTB -->
+      <div class="vertical-demo-col">
+        <div class="vertical-demo-col-label">ttb — top to bottom</div>
+        <div class="c-marquee-container-vertical">
+          <div class="c-marquee-track-vertical">
+            <div data-marquee data-marquee-direction="ttb" class="c-marquee-wrapper-vertical">
+              <div data-marquee-item class="c-marquee-item-vertical">Webflow</div>
+              <div data-marquee-item class="c-marquee-item-vertical">Figma</div>
+              <div data-marquee-item class="c-marquee-item-vertical">GSAP</div>
+              <div data-marquee-item class="c-marquee-item-vertical">React</div>
+              <div data-marquee-item class="c-marquee-item-vertical">TypeScript</div>
+              <div data-marquee-item class="c-marquee-item-vertical">Vite</div>
+            </div>
           </div>
-          <div data-marquee-item class="c-logos-marquee_logo-item">
-            <img src="https://cdn.prod.website-files.com/67dd6fe7bd7e331b5970b9f4/67ec0bef67f6f414e2ce45ba_logo-14.avif" loading="lazy" alt="" class="c-logo-marquee_logo">
-          </div>
-          <div data-marquee-item class="c-logos-marquee_logo-item">
-            <img src="https://cdn.prod.website-files.com/67dd6fe7bd7e331b5970b9f4/67ec0bf14ac5ca412f10fc44_logo-24.avif" loading="lazy" alt="" class="c-logo-marquee_logo">
-          </div>
-          <div data-marquee-item class="c-logos-marquee_logo-item">
-            <img src="https://cdn.prod.website-files.com/67dd6fe7bd7e331b5970b9f4/67ec0bf274e3857aad694093_logo-35.avif" loading="lazy" alt="" class="c-logo-marquee_logo">
+        </div>
+      </div>
+
+      <!-- BTT -->
+      <div class="vertical-demo-col">
+        <div class="vertical-demo-col-label">btt — bottom to top</div>
+        <div class="c-marquee-container-vertical">
+          <div class="c-marquee-track-vertical">
+            <div data-marquee data-marquee-direction="btt" class="c-marquee-wrapper-vertical">
+              <div data-marquee-item class="c-marquee-item-vertical">Motion Design</div>
+              <div data-marquee-item class="c-marquee-item-vertical">Brand Strategy</div>
+              <div data-marquee-item class="c-marquee-item-vertical">UI / UX</div>
+              <div data-marquee-item class="c-marquee-item-vertical">Development</div>
+              <div data-marquee-item class="c-marquee-item-vertical">Performance</div>
+              <div data-marquee-item class="c-marquee-item-vertical">Accessibility</div>
+            </div>
           </div>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- 4. Pause on Hover -->
+  <!-- ─── 4. Speed ─────────────────────────────────────────────────────── -->
   <section class="section">
-    <h2 class="section-title">4. Pause on Hover</h2>
-    <p class="section-description">Hover over the marquee to pause it.</p>
-    
-    <div class="c-logos-marquee-container" id="hover-marquee-container">
-      <div class="c-logos-marquee">
-        <div data-marquee id="hover-marquee" class="c-logos-marquee_wrapper">
-          <div data-marquee-item class="c-logos-marquee_logo-item">
-            <img src="https://cdn.prod.website-files.com/67dd6fe7bd7e331b5970b9f4/67ec0bf2cd17b013740392ef_logo-32.avif" loading="lazy" alt="" class="c-logo-marquee_logo">
+    <h2 class="section-title">4. Custom Speed</h2>
+    <p class="section-description">
+      <code>data-marquee-speed="3"</code> runs at 3× the default rate.
+    </p>
+
+    <div class="c-marquee-container">
+      <div class="c-marquee-track">
+        <div data-marquee data-marquee-speed="3" class="c-marquee-wrapper">
+          <div data-marquee-item class="c-marquee-item">
+            <img src="https://cdn.prod.website-files.com/67dd6fe7bd7e331b5970b9f4/67ec0bf2cd17b013740392ef_logo-32.avif" loading="lazy" alt="" class="c-marquee-logo">
           </div>
-          <div data-marquee-item class="c-logos-marquee_logo-item">
-            <img src="https://cdn.prod.website-files.com/67dd6fe7bd7e331b5970b9f4/67ec0bef67f6f414e2ce45ba_logo-14.avif" loading="lazy" alt="" class="c-logo-marquee_logo">
+          <div data-marquee-item class="c-marquee-item">
+            <img src="https://cdn.prod.website-files.com/67dd6fe7bd7e331b5970b9f4/67ec0bef67f6f414e2ce45ba_logo-14.avif" loading="lazy" alt="" class="c-marquee-logo">
           </div>
-          <div data-marquee-item class="c-logos-marquee_logo-item">
-            <img src="https://cdn.prod.website-files.com/67dd6fe7bd7e331b5970b9f4/67ec0bf14ac5ca412f10fc44_logo-24.avif" loading="lazy" alt="" class="c-logo-marquee_logo">
+          <div data-marquee-item class="c-marquee-item">
+            <img src="https://cdn.prod.website-files.com/67dd6fe7bd7e331b5970b9f4/67ec0bf14ac5ca412f10fc44_logo-24.avif" loading="lazy" alt="" class="c-marquee-logo">
           </div>
-          <div data-marquee-item class="c-logos-marquee_logo-item">
-            <img src="https://cdn.prod.website-files.com/67dd6fe7bd7e331b5970b9f4/67ec0bf274e3857aad694093_logo-35.avif" loading="lazy" alt="" class="c-logo-marquee_logo">
+          <div data-marquee-item class="c-marquee-item">
+            <img src="https://cdn.prod.website-files.com/67dd6fe7bd7e331b5970b9f4/67ec0bf274e3857aad694093_logo-35.avif" loading="lazy" alt="" class="c-marquee-logo">
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── 5. Pause on Hover ────────────────────────────────────────────── -->
+  <section class="section">
+    <h2 class="section-title">5. Pause on Hover</h2>
+    <p class="section-description">
+      <code>data-marquee-pause-on-hover="true"</code> pauses the animation when the mouse enters the container.
+    </p>
+
+    <div class="c-marquee-container" id="hover-marquee-container">
+      <div class="c-marquee-track">
+        <div data-marquee data-marquee-pause-on-hover="true" id="hover-marquee" class="c-marquee-wrapper">
+          <div data-marquee-item class="c-marquee-item">
+            <img src="https://cdn.prod.website-files.com/67dd6fe7bd7e331b5970b9f4/67ec0bf2cd17b013740392ef_logo-32.avif" loading="lazy" alt="" class="c-marquee-logo">
+          </div>
+          <div data-marquee-item class="c-marquee-item">
+            <img src="https://cdn.prod.website-files.com/67dd6fe7bd7e331b5970b9f4/67ec0bef67f6f414e2ce45ba_logo-14.avif" loading="lazy" alt="" class="c-marquee-logo">
+          </div>
+          <div data-marquee-item class="c-marquee-item">
+            <img src="https://cdn.prod.website-files.com/67dd6fe7bd7e331b5970b9f4/67ec0bf14ac5ca412f10fc44_logo-24.avif" loading="lazy" alt="" class="c-marquee-logo">
+          </div>
+          <div data-marquee-item class="c-marquee-item">
+            <img src="https://cdn.prod.website-files.com/67dd6fe7bd7e331b5970b9f4/67ec0bf274e3857aad694093_logo-35.avif" loading="lazy" alt="" class="c-marquee-logo">
           </div>
         </div>
       </div>
@@ -398,43 +510,76 @@
     <p class="hover-hint">Hover over the logos to pause the animation</p>
   </section>
 
-  <!-- 5. Text Marquee -->
+  <!-- ─── 6. Draggable ─────────────────────────────────────────────────── -->
   <section class="section">
-    <h2 class="section-title">5. Text Marquee</h2>
-    <p class="section-description">Large text with stroke effect, perfect for headlines.</p>
-    
+    <h2 class="section-title">6. Draggable</h2>
+    <p class="section-description">
+      <code>data-marquee-draggable="true"</code> enables drag and touch interaction.
+      Draggable is <strong>off by default</strong> — you must opt in per marquee.
+    </p>
+
+    <div class="c-marquee-container">
+      <div class="c-marquee-track">
+        <div data-marquee data-marquee-draggable="true" class="c-marquee-wrapper">
+          <div data-marquee-item class="c-marquee-item">
+            <img src="https://cdn.prod.website-files.com/67dd6fe7bd7e331b5970b9f4/67ec0bf2cd17b013740392ef_logo-32.avif" loading="lazy" alt="" class="c-marquee-logo">
+          </div>
+          <div data-marquee-item class="c-marquee-item">
+            <img src="https://cdn.prod.website-files.com/67dd6fe7bd7e331b5970b9f4/67ec0bef67f6f414e2ce45ba_logo-14.avif" loading="lazy" alt="" class="c-marquee-logo">
+          </div>
+          <div data-marquee-item class="c-marquee-item">
+            <img src="https://cdn.prod.website-files.com/67dd6fe7bd7e331b5970b9f4/67ec0bf14ac5ca412f10fc44_logo-24.avif" loading="lazy" alt="" class="c-marquee-logo">
+          </div>
+          <div data-marquee-item class="c-marquee-item">
+            <img src="https://cdn.prod.website-files.com/67dd6fe7bd7e331b5970b9f4/67ec0bf274e3857aad694093_logo-35.avif" loading="lazy" alt="" class="c-marquee-logo">
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="hover-hint">Click and drag the logos</p>
+  </section>
+
+  <!-- ─── 7. Text Marquee ───────────────────────────────────────────────── -->
+  <section class="section">
+    <h2 class="section-title">7. Text Marquee</h2>
+    <p class="section-description">
+      Large text with stroke effect. Uses <code>data-marquee-speed="0.5"</code> for a slower, cinematic feel.
+    </p>
+
     <div class="c-text-marquee-container">
-      <div class="c-text-marquee">
-        <div data-marquee data-marquee-speed="0.5" class="c-text-marquee_wrapper">
-          <div data-marquee-item class="c-text-marquee_item">Design <span>&</span> Development</div>
-          <div data-marquee-item class="c-text-marquee_item">Creative <span>&</span> Strategy</div>
-          <div data-marquee-item class="c-text-marquee_item">Brand <span>&</span> Identity</div>
+      <div class="c-text-marquee-track">
+        <div data-marquee data-marquee-speed="0.5" class="c-text-marquee-wrapper">
+          <div data-marquee-item class="c-text-marquee-item">Design <span>&</span> Development</div>
+          <div data-marquee-item class="c-text-marquee-item">Creative <span>&</span> Strategy</div>
+          <div data-marquee-item class="c-text-marquee-item">Brand <span>&</span> Identity</div>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- 6. Card Marquee -->
+  <!-- ─── 8. Card Marquee ───────────────────────────────────────────────── -->
   <section class="section">
-    <h2 class="section-title">6. Card Marquee</h2>
-    <p class="section-description">Showcase cards with content, using RTL direction.</p>
-    
+    <h2 class="section-title">8. Card Marquee</h2>
+    <p class="section-description">
+      RTL direction with cards. Note the <code>padding-right</code> on the wrapper matching the gap — required for a seamless loop.
+    </p>
+
     <div class="c-card-marquee-container">
-      <div class="c-card-marquee">
-        <div data-marquee data-marquee-direction="rtl" data-marquee-speed="0.8" class="c-card-marquee_wrapper">
-          <div data-marquee-item class="c-card-marquee_item">
+      <div class="c-card-marquee-track">
+        <div data-marquee data-marquee-direction="rtl" data-marquee-speed="0.8" class="c-card-marquee-wrapper">
+          <div data-marquee-item class="c-card-marquee-item">
             <h3>Web Development</h3>
             <p>Building modern, responsive websites with cutting-edge technologies.</p>
           </div>
-          <div data-marquee-item class="c-card-marquee_item">
+          <div data-marquee-item class="c-card-marquee-item">
             <h3>UI/UX Design</h3>
             <p>Creating intuitive and beautiful user experiences that delight.</p>
           </div>
-          <div data-marquee-item class="c-card-marquee_item">
+          <div data-marquee-item class="c-card-marquee-item">
             <h3>Brand Strategy</h3>
             <p>Developing compelling brand narratives that resonate with audiences.</p>
           </div>
-          <div data-marquee-item class="c-card-marquee_item">
+          <div data-marquee-item class="c-card-marquee-item">
             <h3>Motion Design</h3>
             <p>Bringing interfaces to life with smooth, purposeful animations.</p>
           </div>
@@ -443,25 +588,25 @@
     </div>
   </section>
 
-  <!-- 7. Programmatic Control -->
+  <!-- ─── 9. Programmatic Control ─────────────────────────────────────── -->
   <section class="section">
-    <h2 class="section-title">7. Programmatic Control</h2>
-    <p class="section-description">Control the marquee with JavaScript methods.</p>
-    
-    <div class="c-logos-marquee-container">
-      <div class="c-logos-marquee" id="controlled-marquee-track">
-        <div data-marquee id="controlled-marquee" class="c-logos-marquee_wrapper">
-          <div data-marquee-item class="c-logos-marquee_logo-item">
-            <img src="https://cdn.prod.website-files.com/67dd6fe7bd7e331b5970b9f4/67ec0bf2cd17b013740392ef_logo-32.avif" loading="lazy" alt="" class="c-logo-marquee_logo">
+    <h2 class="section-title">9. Programmatic Control</h2>
+    <p class="section-description">Control a marquee via JavaScript — pause, resume, change speed and direction at runtime.</p>
+
+    <div class="c-marquee-container">
+      <div class="c-marquee-track" id="controlled-marquee-track">
+        <div data-marquee id="controlled-marquee" class="c-marquee-wrapper">
+          <div data-marquee-item class="c-marquee-item">
+            <img src="https://cdn.prod.website-files.com/67dd6fe7bd7e331b5970b9f4/67ec0bf2cd17b013740392ef_logo-32.avif" loading="lazy" alt="" class="c-marquee-logo">
           </div>
-          <div data-marquee-item class="c-logos-marquee_logo-item">
-            <img src="https://cdn.prod.website-files.com/67dd6fe7bd7e331b5970b9f4/67ec0bef67f6f414e2ce45ba_logo-14.avif" loading="lazy" alt="" class="c-logo-marquee_logo">
+          <div data-marquee-item class="c-marquee-item">
+            <img src="https://cdn.prod.website-files.com/67dd6fe7bd7e331b5970b9f4/67ec0bef67f6f414e2ce45ba_logo-14.avif" loading="lazy" alt="" class="c-marquee-logo">
           </div>
-          <div data-marquee-item class="c-logos-marquee_logo-item">
-            <img src="https://cdn.prod.website-files.com/67dd6fe7bd7e331b5970b9f4/67ec0bf14ac5ca412f10fc44_logo-24.avif" loading="lazy" alt="" class="c-logo-marquee_logo">
+          <div data-marquee-item class="c-marquee-item">
+            <img src="https://cdn.prod.website-files.com/67dd6fe7bd7e331b5970b9f4/67ec0bf14ac5ca412f10fc44_logo-24.avif" loading="lazy" alt="" class="c-marquee-logo">
           </div>
-          <div data-marquee-item class="c-logos-marquee_logo-item">
-            <img src="https://cdn.prod.website-files.com/67dd6fe7bd7e331b5970b9f4/67ec0bf274e3857aad694093_logo-35.avif" loading="lazy" alt="" class="c-logo-marquee_logo">
+          <div data-marquee-item class="c-marquee-item">
+            <img src="https://cdn.prod.website-files.com/67dd6fe7bd7e331b5970b9f4/67ec0bf274e3857aad694093_logo-35.avif" loading="lazy" alt="" class="c-marquee-logo">
           </div>
         </div>
       </div>
@@ -499,28 +644,22 @@
   </script>
 
   <script type="module">
-    // Import from the bundled browser version
-    import { initMarquee, createMarquee } from './dist/marquee.browser.js';
+    import { initMarquee } from './dist/marquee.browser.js';
 
-    // Initialize all marquees (async - waits for images to load)
     async function init() {
-      // Create the hover marquee separately with pauseOnHover option
-      const hoverMarquee = await createMarquee('#hover-marquee', { pauseOnHover: true });
-
-      // Initialize all other marquees (reads direction/speed from data attributes)
+      // initMarquee reads all data attributes automatically.
+      // Sections 5 (pauseOnHover) and 6 (draggable) are handled via their data attributes.
       const marquees = await initMarquee();
       console.log('Marquee instances initialized:', marquees.length);
 
-      // Update clone count display for first marquee
+      // Update clone count for the first marquee
       const firstMarquee = marquees[0];
       if (firstMarquee) {
         const updateCloneCount = () => {
-          const cloneCountEl = document.getElementById('clone-count-1');
-          const track = firstMarquee.element.parentElement;
-          const clones = track?.querySelectorAll('[data-marquee-clone]').length || 0;
-          if (cloneCountEl) {
-            cloneCountEl.textContent = `Clones: ${clones} (${clones + 1} total wrappers)`;
-          }
+          const el = document.getElementById('clone-count-1');
+          const clones = firstMarquee.element.parentElement
+            ?.querySelectorAll('[data-marquee-clone]').length || 0;
+          if (el) el.textContent = `Clones: ${clones} (${clones + 1} total wrappers)`;
         };
         updateCloneCount();
         window.addEventListener('resize', () => setTimeout(updateCloneCount, 200));
@@ -531,10 +670,9 @@
 
     const marquees = await init();
 
-    // Get the controlled marquee instance
-    const controlledMarquee = marquees.find(m => m.element.id === 'controlled-marquee');
+    // Programmatic control (section 9)
+    const controlled = marquees.find(m => m.element.id === 'controlled-marquee');
 
-    // Control buttons
     const pauseBtn = document.getElementById('pause-btn');
     const resumeBtn = document.getElementById('resume-btn');
     const toggleDirectionBtn = document.getElementById('toggle-direction');
@@ -544,7 +682,7 @@
     const statusText = document.getElementById('status-text');
 
     function updateStatus() {
-      if (controlledMarquee?.isPaused()) {
+      if (controlled?.isPaused()) {
         statusDot.classList.add('paused');
         statusText.textContent = 'Paused';
       } else {
@@ -553,26 +691,19 @@
       }
     }
 
-    pauseBtn.addEventListener('click', () => {
-      controlledMarquee?.pause();
-      updateStatus();
-    });
-
-    resumeBtn.addEventListener('click', () => {
-      controlledMarquee?.resume();
-      updateStatus();
-    });
+    pauseBtn.addEventListener('click', () => { controlled?.pause(); updateStatus(); });
+    resumeBtn.addEventListener('click', () => { controlled?.resume(); updateStatus(); });
 
     toggleDirectionBtn.addEventListener('click', () => {
-      if (!controlledMarquee) return;
-      const newDirection = controlledMarquee.getDirection() === 'ltr' ? 'rtl' : 'ltr';
-      controlledMarquee.setDirection(newDirection);
-      toggleDirectionBtn.textContent = `Direction: ${newDirection.toUpperCase()}`;
+      if (!controlled) return;
+      const next = controlled.getDirection() === 'ltr' ? 'rtl' : 'ltr';
+      controlled.setDirection(next);
+      toggleDirectionBtn.textContent = `Direction: ${next.toUpperCase()}`;
     });
 
     speedSlider.addEventListener('input', (e) => {
       const speed = parseFloat(e.target.value);
-      controlledMarquee?.setSpeed(speed);
+      controlled?.setSpeed(speed);
       speedValue.textContent = `${speed}x`;
     });
   </script>
