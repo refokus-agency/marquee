@@ -1,5 +1,54 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { debounce, waitForImages, waitForViewport } from '../utils.ts';
+import {
+  clampFrameDelta,
+  debounce,
+  getTrackGap,
+  waitForImages,
+  waitForViewport,
+} from '../utils.ts';
+
+describe('clampFrameDelta', () => {
+  it('returns the delta unchanged when below the max', () => {
+    expect(clampFrameDelta(16, 100)).toBe(16);
+  });
+
+  it('returns the max when the delta exceeds it (tab resume spike)', () => {
+    expect(clampFrameDelta(5000, 100)).toBe(100);
+  });
+
+  it('returns the delta when equal to the max', () => {
+    expect(clampFrameDelta(100, 100)).toBe(100);
+  });
+});
+
+describe('getTrackGap', () => {
+  afterEach(() => {
+    document.body.innerHTML = '';
+  });
+
+  it('reads the column gap for horizontal marquees', () => {
+    const track = document.createElement('div');
+    track.style.columnGap = '20px';
+    document.body.appendChild(track);
+
+    expect(getTrackGap(track, false)).toBe(20);
+  });
+
+  it('reads the row gap for vertical marquees', () => {
+    const track = document.createElement('div');
+    track.style.rowGap = '32px';
+    document.body.appendChild(track);
+
+    expect(getTrackGap(track, true)).toBe(32);
+  });
+
+  it('returns 0 when no gap is set', () => {
+    const track = document.createElement('div');
+    document.body.appendChild(track);
+
+    expect(getTrackGap(track, false)).toBe(0);
+  });
+});
 
 describe('debounce', () => {
   beforeEach(() => {

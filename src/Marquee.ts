@@ -2,7 +2,13 @@ import { gsap } from 'gsap';
 import { Observer } from 'gsap/dist/Observer';
 
 import type { MarqueeDirection, MarqueeOptions } from './types.ts';
-import { debounce, waitForImages, waitForViewport } from './utils.ts';
+import {
+  clampFrameDelta,
+  debounce,
+  getTrackGap,
+  waitForImages,
+  waitForViewport,
+} from './utils.ts';
 
 gsap.registerPlugin(Observer);
 
@@ -15,6 +21,13 @@ const DEFAULT_OPTIONS: Required<MarqueeOptions> = {
 };
 
 const RESIZE_DEBOUNCE_MS = 150;
+
+/**
+ * Upper bound (ms) for a single ticker frame. Above this we assume the tab was
+ * backgrounded or the thread stalled and cap the advance so the marquee never
+ * leaps forward when rAF resumes. See {@link clampFrameDelta}.
+ */
+const MAX_FRAME_DELTA_MS = 100;
 
 /**
  * Marquee class for creating infinite scrolling animations.
@@ -113,9 +126,7 @@ export class Marquee {
     // Mark element as initialized to prevent double-initialization
     this.element.setAttribute('data-marquee-initialized', 'true');
 
-    this.originalSize = this.isVertical()
-      ? this.element.offsetHeight
-      : this.element.offsetWidth;
+    this.originalSize = this.measurePeriod();
     this.wrap = gsap.utils.wrap(-this.originalSize, 0);
     this.moveTo = this.createQuickTo();
 
@@ -146,6 +157,19 @@ export class Marquee {
 
   private isVertical(): boolean {
     return this.direction === 'ttb' || this.direction === 'btt';
+  }
+
+  /**
+   * The seamless loop distance: the wrapper's own size PLUS the flex gap the
+   * track puts between it and the next clone. Measured with
+   * getBoundingClientRect (fractional) instead of offsetWidth/offsetHeight
+   * (integer-rounded) so sub-pixel widths don't accumulate drift on every loop.
+   * Omitting the gap makes the content jump by one gap-width at each wrap.
+   */
+  private measurePeriod(): number {
+    const rect = this.element.getBoundingClientRect();
+    const base = this.isVertical() ? rect.height : rect.width;
+    return base + getTrackGap(this.track, this.isVertical());
   }
 
   private createQuickTo(): gsap.QuickToFunc {
@@ -193,7 +217,8 @@ export class Marquee {
 
       const directionMultiplier =
         this.direction === 'rtl' || this.direction === 'ttb' ? -1 : 1;
-      this.position -= (deltaTime / 15) * this.speed * directionMultiplier;
+      const delta = clampFrameDelta(deltaTime, MAX_FRAME_DELTA_MS);
+      this.position -= (delta / 15) * this.speed * directionMultiplier;
       this.moveTo(this.position);
     };
 
@@ -236,9 +261,7 @@ export class Marquee {
   private handleResize(): void {
     if (this.destroyed || !this.initialized) return;
 
-    this.originalSize = this.isVertical()
-      ? this.element.offsetHeight
-      : this.element.offsetWidth;
+    this.originalSize = this.measurePeriod();
     this.updateClones();
 
     this.wrap = gsap.utils.wrap(-this.originalSize, 0);
