@@ -402,15 +402,15 @@ createMarquee(element: HTMLElement | string, options?: MarqueeOptions): Promise<
 ## Development
 
 ```bash
-npm run build          # Compile TypeScript + browser bundle
-npm run build:clean    # Clean dist and rebuild
-npm run build:watch    # Vite watch mode
-npm run build:watch:types  # TypeScript watch mode
-npm test               # Run tests
-npm run check-types    # TypeScript type check
-npm run lint           # Lint and auto-fix
-npm run format         # Prettier format
-npm run commit         # Conventional commit wizard
+pnpm build             # Compile TypeScript + browser bundle
+pnpm build:clean       # Clean dist and rebuild
+pnpm build:watch       # Vite watch mode
+pnpm build:watch:types # TypeScript watch mode
+pnpm test              # Run tests
+pnpm check-types       # TypeScript type check
+pnpm lint              # Lint and auto-fix
+pnpm format            # Prettier format
+pnpm commit            # Conventional commit wizard
 ```
 
 ## Publishing
@@ -418,7 +418,7 @@ npm run commit         # Conventional commit wizard
 This package uses automated semantic versioning via GitHub Actions. Commits must follow [Conventional Commits](https://www.conventionalcommits.org/):
 
 ```bash
-npm run commit  # Use the commit wizard
+pnpm commit  # Use the commit wizard
 ```
 
 ## License

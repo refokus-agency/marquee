@@ -70,22 +70,22 @@ The marquee requires a **3-level structure**:
 
 ## Build/Lint/Test Commands
 
-| Command               | Description                 |
-| --------------------- | --------------------------- |
-| `npm run build`       | Compile TypeScript to dist/ |
-| `npm run build:clean` | Clean dist/ and rebuild     |
-| `npm test`            | Run all tests (Vitest)      |
-| `npm run lint`        | Run ESLint with auto-fix    |
-| `npm run format`      | Format code with Prettier   |
-| `npm run check-types` | TypeScript type checking    |
-| `npm run commit`      | Conventional commit wizard  |
+| Command             | Description                 |
+| ------------------- | --------------------------- |
+| `pnpm build`        | Compile TypeScript to dist/ |
+| `pnpm build:clean`  | Clean dist/ and rebuild     |
+| `pnpm test`         | Run all tests (Vitest)      |
+| `pnpm lint`         | Run ESLint with auto-fix    |
+| `pnpm format`       | Format code with Prettier   |
+| `pnpm check-types`  | TypeScript type checking    |
+| `pnpm commit`       | Conventional commit wizard  |
 
 ### Running a Single Test
 
 ```bash
-npx vitest run src/__tests__/index.test.ts  # specific file
-npx vitest run -t "should export"           # by pattern
-npx vitest src/__tests__/index.test.ts      # watch mode
+pnpm exec vitest run src/__tests__/index.test.ts  # specific file
+pnpm exec vitest run -t "should export"           # by pattern
+pnpm exec vitest src/__tests__/index.test.ts      # watch mode
 ```
 
 **Requirements**: Node.js >= 22.0.0, GSAP >= 3.12.0 (peer dependency)
@@ -245,7 +245,7 @@ src/
 
 ## Commits
 
-Use Conventional Commits. Run `npm run commit` for wizard.
+Use Conventional Commits. Run `pnpm commit` for wizard.
 
 ```
 feat(marquee): add pause on hover functionality
