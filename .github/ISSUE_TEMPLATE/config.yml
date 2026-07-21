@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Questions & Discussions
+    url: https://github.com/refokus-agency/marquee/discussions
+    about: Ask questions, share ideas, and get help from the community.
+  - name: Security vulnerability
+    url: https://github.com/refokus-agency/marquee/security/advisories/new
+    about: Please report security issues privately, not as public issues.
