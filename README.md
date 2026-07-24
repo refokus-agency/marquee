@@ -421,6 +421,12 @@ This package uses automated semantic versioning via GitHub Actions. Commits must
 pnpm commit  # Use the commit wizard
 ```
 
+## Code of Conduct
+
+This project adheres to the [Contributor Covenant](CODE_OF_CONDUCT.md) code of
+conduct. By participating, you are expected to uphold it. Please report
+unacceptable behavior to packages@refokus.com.
+
 ## License
 
 See [LICENSE](LICENSE) file.
