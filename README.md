@@ -425,7 +425,7 @@ npm run commit  # Use the commit wizard
 
 This project adheres to the [Contributor Covenant](CODE_OF_CONDUCT.md) code of
 conduct. By participating, you are expected to uphold it. Please report
-unacceptable behavior to security@refokus.com.
+unacceptable behavior to packages@refokus.com.
 
 ## License
 
