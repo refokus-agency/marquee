@@ -23,9 +23,19 @@
 #   - packages: read  — the reusable workflow writes an ~/.npmrc pointing @refokus-agency
 #                       at https://npm.pkg.github.com, authenticated with GITHUB_TOKEN.
 #
-# No `with:` block is passed on purpose: every input takes its default, which keeps this
-# repo aligned with navigation. `secrets: inherit` is required for the package registry
-# auth above.
+# Both refs below name the same platform release, and that is deliberate. `ci.yml` checks
+# the platform repo out a SECOND time to run its composite actions, at whatever
+# `platform-ref` says — and that input defaults to `main`. So pinning only the `uses:` line
+# freezes the choreography while the actions it calls keep moving underneath it. Pinning
+# only `platform-ref` does the reverse, and lets a newer `ci.yml` call an older `setup`.
+# Either half-pin lets the two drift apart, so both name v1.8.1.
+#
+# The cost is that platform improvements no longer arrive on their own: bumping is now a
+# deliberate edit here. That is the trade we want — CI behaviour should change because
+# someone changed it in this repo, not because something landed on platform's main.
+# This is the one place marquee diverges from navigation, which takes the defaults.
+#
+# `secrets: inherit` is required for the package registry auth above.
 #
 # Note: this workflow reports failure, it does not block merges by itself. Making
 # `Pull Request` a required status check is branch protection work, tracked in issue #22.
@@ -45,5 +55,7 @@ concurrency:
 
 jobs:
   ci:
-    uses: refokus-agency/platform/.github/workflows/ci.yml@v1
+    uses: refokus-agency/platform/.github/workflows/ci.yml@v1.8.1
+    with:
+      platform-ref: v1.8.1
     secrets: inherit
