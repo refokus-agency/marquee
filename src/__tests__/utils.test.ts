@@ -118,7 +118,7 @@ describe('waitForViewport', () => {
 
     vi.stubGlobal(
       'IntersectionObserver',
-      vi.fn((cb: IOCallback) => {
+      vi.fn(function (cb: IOCallback) {
         capturedCallback = cb;
         return mockObserver;
       }),
@@ -146,7 +146,7 @@ describe('waitForViewport', () => {
 
     vi.stubGlobal(
       'IntersectionObserver',
-      vi.fn((cb: IOCallback) => {
+      vi.fn(function (cb: IOCallback) {
         capturedCallback = cb;
         return mockObserver;
       }),
