@@ -1,2 +1,11 @@
-onlyBuiltDependencies:
-  - esbuild
+# esbuild's postinstall (install.js) only downloads a binary when the
+# platform-specific @esbuild/* optional dependency is missing. It is present,
+# so the script's only remaining action is a hardlink optimization that esbuild
+# itself wraps in an empty catch.
+#
+# Safe as long as that optional dependency is installed. Do NOT pair this with
+# --no-optional, and do not reuse node_modules across architectures (e.g. a
+# cross-arch Docker copy): in those cases install.js would need its download
+# recovery path, which this setting blocks.
+allowBuilds:
+  esbuild: false

@@ -52,7 +52,7 @@ export async function initMarquee(
   const wrappers = document.querySelectorAll<HTMLElement>(wrapperSelector);
   if (!wrappers.length) return [];
 
-  const promises: Array<Promise<Marquee | null>> = [];
+  const promises: Promise<Marquee | null>[] = [];
 
   wrappers.forEach((wrapper) => {
     // Skip clones and already-initialized elements

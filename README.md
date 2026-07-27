@@ -408,8 +408,8 @@ pnpm build:watch       # Vite watch mode
 pnpm build:watch:types # TypeScript watch mode
 pnpm test              # Run tests
 pnpm check-types       # TypeScript type check
-pnpm lint              # Lint and auto-fix
-pnpm format            # Prettier format
+pnpm lint              # Lint with Biome (--write)
+pnpm format            # Format with Biome (--write)
 pnpm commit            # Conventional commit wizard
 ```
 
