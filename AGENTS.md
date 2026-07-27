@@ -75,8 +75,8 @@ The marquee requires a **3-level structure**:
 | `pnpm build`        | Compile TypeScript to dist/ |
 | `pnpm build:clean`  | Clean dist/ and rebuild     |
 | `pnpm test`         | Run all tests (Vitest)      |
-| `pnpm lint`         | Run ESLint with auto-fix    |
-| `pnpm format`       | Format code with Prettier   |
+| `pnpm lint`         | Biome lint with auto-fix    |
+| `pnpm format`       | Format code with Biome      |
 | `pnpm check-types`  | TypeScript type checking    |
 | `pnpm commit`       | Conventional commit wizard  |
 
@@ -92,19 +92,26 @@ pnpm exec vitest src/__tests__/index.test.ts      # watch mode
 
 ## Code Style
 
-### Formatting (Prettier)
+**Biome** handles both linting and formatting. Config lives in `biome.json`.
+
+### Formatting (Biome)
 
 - 2 spaces indentation (no tabs)
 - Single quotes
 - Semicolons always required
 - Trailing commas everywhere
+- 80 character line width
 
-### ESLint
+### Linting (Biome)
 
-- `no-console`: allowed
-- `@typescript-eslint/no-explicit-any`: allowed
-- `@typescript-eslint/no-unused-vars`: warn, prefix unused with `_`
-- Use simple array syntax (`string[]` not `Array<string>`)
+The recommended preset is off (`linter.rules.preset: "none"`) — only the rules
+listed in `biome.json` run.
+
+- `suspicious/noConsole`: off — `console` is allowed
+- `suspicious/noExplicitAny`: off — `any` is allowed
+- `correctness/noUnusedVariables`: warn, prefix unused with `_`
+- `style/useConsistentArrayType`: simple array syntax (`string[]` not `Array<string>`)
+- `style/noNamespace` and `style/useAsConstAssertion`: errors
 
 ### TypeScript
 

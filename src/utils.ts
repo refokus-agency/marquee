@@ -51,7 +51,10 @@ export function debounce<T extends (...args: unknown[]) => void>(
  * Falls back to resolving immediately if IntersectionObserver is not available.
  * Accepts an optional AbortSignal — if aborted, disconnects the observer and resolves immediately.
  */
-export function waitForViewport(element: HTMLElement, signal?: AbortSignal): Promise<void> {
+export function waitForViewport(
+  element: HTMLElement,
+  signal?: AbortSignal,
+): Promise<void> {
   if (typeof IntersectionObserver === 'undefined') {
     return Promise.resolve();
   }
