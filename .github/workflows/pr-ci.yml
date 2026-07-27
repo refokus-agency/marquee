@@ -1,0 +1,49 @@
+# Pull Request CI for @refokus-agency/marquee.
+#
+# This workflow intentionally contains no build logic of its own. It delegates to the
+# shared reusable workflow in refokus-agency/platform so that every Refokus package
+# runs the same pipeline, and so pipeline changes ship from one place instead of being
+# copy-pasted across repos. The reference implementation is refokus-agency/navigation.
+#
+# What the reusable workflow runs, in order:
+#   1. Detects the package manager from the committed lockfile. `pnpm-lock.yaml` is
+#      present here, so it resolves to pnpm 10 on Node 24. The `packageManager` field in
+#      package.json is NOT read.
+#   2. `pnpm install --frozen-lockfile --ignore-scripts`.
+#   3. Lint, Typecheck, Test and Build — each step runs only if package.json declares a
+#      script with that exact name, and is silently skipped otherwise.
+#
+# Gotcha worth remembering: the script probe looks for `typecheck`, never `check-types`.
+# package.json therefore defines both — `check-types` is what `prepublishOnly` invokes,
+# and `typecheck` is the name this CI can discover. Removing the `typecheck` alias does
+# not turn the check red; it makes CI report green while never type checking at all.
+#
+# Permissions are the minimum the reusable workflow needs:
+#   - contents: read  — to check out this repository.
+#   - packages: read  — the reusable workflow writes an ~/.npmrc pointing @refokus-agency
+#                       at https://npm.pkg.github.com, authenticated with GITHUB_TOKEN.
+#
+# No `with:` block is passed on purpose: every input takes its default, which keeps this
+# repo aligned with navigation. `secrets: inherit` is required for the package registry
+# auth above.
+#
+# Note: this workflow reports failure, it does not block merges by itself. Making
+# `Pull Request` a required status check is branch protection work, tracked in issue #22.
+
+name: Pull Request
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+  packages: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  ci:
+    uses: refokus-agency/platform/.github/workflows/ci.yml@v1
+    secrets: inherit
