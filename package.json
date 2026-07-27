@@ -16,9 +16,11 @@
   "files": [
     "dist/**/*",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "NOTICE"
   ],
-  "author": "",
+  "author": "Refokus LLC",
+  "license": "Apache-2.0",
   "keywords": [
     "marquee",
     "animation",
