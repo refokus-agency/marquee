@@ -1,0 +1,53 @@
+# CI + semantic-release on push to main, publishing to the PUBLIC npm registry
+# (registry.npmjs.org) via OIDC Trusted Publishing.
+#
+# Before this works, a Trusted Publisher must be configured for the package on
+# npmjs.org (Package settings -> Trusted Publisher) pointing at this repository
+# and the release.yml workflow filename. No NPM_TOKEN secret is required — OIDC
+# mints a short-lived credential instead.
+#
+# `publishConfig.registry` in package.json wins over everything else, so it is
+# set explicitly to https://registry.npmjs.org/ with `access: public`. A leftover
+# https://npm.pkg.github.com value would silently send the publish to the wrong
+# registry.
+#
+# `id-token: write` is REQUIRED here — it is what lets npm mint the OIDC
+# credential. Without it the publish fails.
+#
+# `provenance` stays off (the reusable default) while this repository is private;
+# flip it on once the repository is public if signed provenance is wanted.
+#
+# workflow_dispatch is kept as an escape hatch — it allows re-running a release
+# from the Actions tab without pushing a new commit.
+#
+# See refokus-agency/platform docs/secrets.md for the full setup.
+
+name: Release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  packages: write
+  issues: write
+  pull-requests: write
+  id-token: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ci:
+    uses: refokus-agency/platform/.github/workflows/ci.yml@v1
+    secrets: inherit
+
+  release:
+    needs: ci
+    uses: refokus-agency/platform/.github/workflows/release.yml@v1.7.1
+    with:
+      registry: npm
+    secrets: inherit
