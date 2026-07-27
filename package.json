@@ -42,6 +42,7 @@
     "build:watch:types": "tsc --watch",
     "prepublishOnly": "npm run check-types && npm run lint && npm run build:clean",
     "check-types": "tsc --noEmit --strict --skipLibCheck",
+    "typecheck": "tsc --noEmit --strict --skipLibCheck",
     "lint": "biome lint --write ./src",
     "lint:report": "biome lint ./src",
     "format": "biome format --write ./src",
