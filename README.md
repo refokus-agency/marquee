@@ -434,4 +434,6 @@ unacceptable behavior to packages@refokus.com.
 
 ## License
 
-See [LICENSE](LICENSE) file.
+Licensed under the Apache License, Version 2.0 (`Apache-2.0`). See
+[LICENSE](LICENSE) for the full license text and [NOTICE](NOTICE) for
+attribution requirements.
