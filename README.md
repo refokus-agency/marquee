@@ -1,6 +1,39 @@
 # @refokus-agency/marquee
 
+[![CI](https://github.com/refokus-agency/marquee/actions/workflows/pr-ci.yml/badge.svg?event=pull_request)](https://github.com/refokus-agency/marquee/actions/workflows/pr-ci.yml)
+[![npm version](https://img.shields.io/npm/v/@refokus-agency/marquee.svg)](https://www.npmjs.com/package/@refokus-agency/marquee)
+[![License: Apache-2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
+
 A GSAP-powered infinite marquee component for smooth, continuous scrolling animations — horizontal and vertical.
+
+## Table of Contents
+
+- [Features](#features)
+- [Requirements](#requirements)
+- [Installation](#installation)
+- [Usage](#usage)
+  - [HTML Structure](#html-structure)
+  - [Basic Usage](#basic-usage)
+  - [With Options](#with-options)
+  - [Custom Selectors](#custom-selectors)
+  - [Using the Marquee Class Directly](#using-the-marquee-class-directly)
+  - [Factory Function](#factory-function)
+  - [Instance Control](#instance-control)
+  - [Data Attributes](#data-attributes)
+- [Webflow Setup](#webflow-setup)
+- [API Reference](#api-reference)
+  - [`MarqueeOptions`](#marqueeoptions)
+  - [`MarqueeConfig`](#marqueeconfig-extends-marqueeoptions)
+  - [`Marquee` Instance Methods](#marquee-instance-methods)
+  - [`Marquee` Instance Properties](#marquee-instance-properties)
+  - [Functions](#functions)
+- [Development](#development)
+- [Publishing](#publishing)
+- [Contributing](#contributing)
+- [Code of Conduct](#code-of-conduct)
+- [Security](#security)
+- [Changelog](#changelog)
+- [License](#license)
 
 ## Features
 
@@ -24,8 +57,15 @@ A GSAP-powered infinite marquee component for smooth, continuous scrolling anima
 ## Installation
 
 ```bash
+# pnpm
+pnpm add @refokus-agency/marquee gsap
+
+# npm
 npm install @refokus-agency/marquee gsap
 ```
+
+> Consuming the package works with any package manager. Contributing to it does
+> not — the development setup is pnpm-only, see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ---
 
@@ -415,7 +455,13 @@ pnpm commit            # Conventional commit wizard
 
 ## Publishing
 
-This package uses automated semantic versioning via GitHub Actions. Commits must follow [Conventional Commits](https://www.conventionalcommits.org/):
+Releases are automated with [semantic-release](https://semantic-release.gitbook.io/)
+and commits must follow
+[Conventional Commits](https://www.conventionalcommits.org/) — the version
+number is derived from the commit history.
+
+Published versions are available on npm as
+[`@refokus-agency/marquee`](https://www.npmjs.com/package/@refokus-agency/marquee).
 
 ```bash
 pnpm commit  # Use the commit wizard
@@ -431,6 +477,17 @@ development setup, commit conventions, and pull request process.
 This project adheres to the [Contributor Covenant](CODE_OF_CONDUCT.md) code of
 conduct. By participating, you are expected to uphold it. Please report
 unacceptable behavior to packages@refokus.com.
+
+## Security
+
+To report a vulnerability, follow the process described in
+[SECURITY.md](SECURITY.md) — please do not open a public issue for security
+reports.
+
+## Changelog
+
+Release notes for every version are published on the
+[GitHub Releases page](https://github.com/refokus-agency/marquee/releases).
 
 ## License
 
