@@ -421,6 +421,11 @@ This package uses automated semantic versioning via GitHub Actions. Commits must
 pnpm commit  # Use the commit wizard
 ```
 
+## Contributing
+
+Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for the
+development setup, commit conventions, and pull request process.
+
 ## Code of Conduct
 
 This project adheres to the [Contributor Covenant](CODE_OF_CONDUCT.md) code of
