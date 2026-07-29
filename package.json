@@ -2,7 +2,7 @@
   "name": "@refokus-agency/marquee",
   "version": "0.0.0-development",
   "type": "module",
-  "description": "Marquee component package for Refokus",
+  "description": "GSAP-powered infinite marquee for horizontal and vertical seamless scrolling, with optional drag, pause-on-hover, and data-attribute configuration. Waits for images and defers init until in view.",
   "main": "dist/index.js",
   "module": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -23,10 +23,21 @@
   "license": "Apache-2.0",
   "keywords": [
     "marquee",
+    "ticker",
+    "seamless-loop",
+    "auto-scroll",
+    "infinite-scroll",
+    "scrolling",
+    "vertical-marquee",
+    "logo-marquee",
+    "pause-on-hover",
+    "gsap",
     "animation",
-    "scroll",
-    "carousel",
-    "typescript"
+    "draggable",
+    "typescript",
+    "esm",
+    "vanilla-js",
+    "webflow"
   ],
   "repository": {
     "type": "git",
