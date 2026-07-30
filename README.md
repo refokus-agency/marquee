@@ -10,6 +10,7 @@ A GSAP-powered infinite marquee component for smooth, continuous scrolling anima
 
 - [Features](#features)
 - [Requirements](#requirements)
+  - [ESM only](#esm-only)
 - [Installation](#installation)
 - [Usage](#usage)
   - [HTML Structure](#html-structure)
@@ -21,6 +22,7 @@ A GSAP-powered infinite marquee component for smooth, continuous scrolling anima
   - [Instance Control](#instance-control)
   - [Data Attributes](#data-attributes)
 - [Webflow Setup](#webflow-setup)
+  - [If the page already loads GSAP](#if-the-page-already-loads-gsap)
 - [API Reference](#api-reference)
   - [`MarqueeOptions`](#marqueeoptions)
   - [`MarqueeConfig`](#marqueeconfig-extends-marqueeoptions)
@@ -53,6 +55,23 @@ A GSAP-powered infinite marquee component for smooth, continuous scrolling anima
 
 - Node.js >= 22.0.0
 - GSAP >= 3.12.0 (peer dependency)
+- An ESM environment — see below
+
+### ESM only
+
+This package ships as ES modules and declares no `require` condition, so
+`require('@refokus-agency/marquee')` fails with `ERR_PACKAGE_PATH_NOT_EXPORTED`.
+Import it instead:
+
+```js
+import { initMarquee } from '@refokus-agency/marquee';
+```
+
+From CommonJS, use a dynamic import:
+
+```js
+const { initMarquee } = await import('@refokus-agency/marquee');
+```
 
 ## Installation
 
@@ -361,22 +380,67 @@ In the **Style Panel**, apply these styles to each level:
 In **Project Settings → Custom Code**, paste before the `</body>` tag:
 
 ```html
-<!-- GSAP (required peer dependency) -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/Observer.min.js"></script>
+<script type="module">
+  import { initMarquee } from 'https://cdn.jsdelivr.net/npm/@refokus-agency/marquee@X.Y.Z/+esm';
 
-<!-- Marquee init -->
-<script>
-  window.addEventListener('DOMContentLoaded', async function () {
-    const { initMarquee } = await import('URL_TO_YOUR_HOSTED_BUNDLE/marquee.browser.js');
-    await initMarquee();
-  });
+  await initMarquee();
 </script>
 ```
 
-Replace `URL_TO_YOUR_HOSTED_BUNDLE` with the URL where you host the compiled browser bundle (`dist/marquee.browser.js`).
+**Replace `@X.Y.Z` with a real version.** Take the current number from the
+[latest release](https://github.com/refokus-agency/marquee/releases) or the npm badge at the top
+of this page. Use `@X` (e.g. `@1`) instead if you want to track the newest `1.x` automatically and
+accept the patch and minor updates that come with it.
+
+No separate GSAP tag is needed: jsDelivr's `/+esm` endpoint resolves the peer dependency and
+ships it alongside the package.
 
 > `initMarquee()` scans the page for `[data-marquee]` elements and reads all configuration from their data attributes automatically.
+
+#### If the page already loads GSAP
+
+`/+esm` bundles its own copy of GSAP. On a page that already has one, you pay for **two GSAP
+cores** — roughly 70 kB of duplicated payload and a second ticker loop. Marquee still animates
+correctly, but it runs on an instance your own code cannot see: shared state such as a global
+timeline, `gsap.matchMedia()` contexts, or plugins you registered on the page's core does not
+carry across.
+
+To run marquee on the GSAP you already have, load the browser bundle directly and map the `gsap`
+specifiers onto the existing global. An import map can only point a specifier at a URL, so the
+global is re-exported through a tiny inline shim module:
+
+```html
+<!-- The GSAP you already load, in whatever form -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/Observer.min.js"></script>
+
+<script type="importmap">
+  {
+    "imports": {
+      "gsap": "data:text/javascript,export const gsap = window.gsap; export default window.gsap;",
+      "gsap/dist/Observer": "data:text/javascript,export const Observer = window.Observer; export default window.Observer;"
+    }
+  }
+</script>
+
+<script type="module">
+  import { initMarquee } from 'https://cdn.jsdelivr.net/npm/@refokus-agency/marquee@X.Y.Z/dist/marquee.browser.js';
+
+  await initMarquee();
+</script>
+```
+
+`marquee.browser.js` keeps `gsap` and `gsap/dist/Observer` as bare imports, so the import map
+decides what they resolve to — here, the single instance already on `window`. Pointing those keys
+at a CDN URL such as `gsap@3/+esm` would *not* achieve this: that fetches a fresh, isolated core
+and leaves you back at two instances.
+
+Replace `@X.Y.Z` here as well. This path requires a release that ships
+`dist/marquee.browser.js` — it does not exist in versions published before that bundle was added,
+so pin at or above the first release containing it rather than reusing an older number.
+
+`docs/examples/local/index.html` in this repository is a working version of this setup, using
+separate shim files instead of inline `data:` URLs.
 
 ---
 
@@ -442,16 +506,22 @@ createMarquee(element: HTMLElement | string, options?: MarqueeOptions): Promise<
 ## Development
 
 ```bash
-pnpm build             # Compile TypeScript + browser bundle
+pnpm build             # Compile TypeScript + browser bundle, then validate the package
 pnpm build:clean       # Clean dist and rebuild
-pnpm build:watch       # Vite watch mode
+pnpm build:watch       # Vite watch mode (no validation)
 pnpm build:watch:types # TypeScript watch mode
 pnpm test              # Run tests
 pnpm check-types       # TypeScript type check
 pnpm lint              # Lint with Biome (--write)
 pnpm format            # Format with Biome (--write)
+pnpm validate:package  # Entry-point rules + publint + attw (runs as part of build)
 pnpm commit            # Conventional commit wizard
 ```
+
+`build` ends with `validate:package`, which asserts the entry-point shape
+(`scripts/validate-exports.mjs`), then runs `publint` and
+`attw --pack --profile esm-only` against a real tarball. A packaging mistake fails the build
+rather than reaching npm. `build:watch` skips it, so iteration stays fast.
 
 ## Publishing
 
@@ -462,6 +532,11 @@ number is derived from the commit history.
 
 Published versions are available on npm as
 [`@refokus-agency/marquee`](https://www.npmjs.com/package/@refokus-agency/marquee).
+
+`prepublishOnly` runs `check-types`, `lint` and `build:clean` before npm accepts the tarball, so
+`validate:package` executes a second time at publish — once in CI and once against the exact
+artifact being uploaded. The repeated work is deliberate: it is the last gate before a broken
+entry-point map becomes a published version.
 
 ```bash
 pnpm commit  # Use the commit wizard
