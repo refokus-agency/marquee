@@ -9,7 +9,7 @@ export default defineConfig(({ mode }) => ({
     lib: {
       entry: resolve(process.cwd(), 'src/index.ts'),
       name: 'Marquee',
-      fileName: () => 'index.js',
+      fileName: () => 'marquee.browser.js',
       formats: ['es'],
     },
     rollupOptions: {

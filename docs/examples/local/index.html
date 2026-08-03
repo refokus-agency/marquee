@@ -629,9 +629,9 @@
     </div>
   </section>
 
-  <!-- Load GSAP from CDN (UMD globals) -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/Observer.min.js"></script>
+  <!-- Load GSAP from the installed peer dependency (UMD globals) — keeps this example offline -->
+  <script src="../../../node_modules/gsap/dist/gsap.min.js"></script>
+  <script src="../../../node_modules/gsap/dist/Observer.min.js"></script>
 
   <!-- Import map: shims expose GSAP globals as ES modules -->
   <script type="importmap">
@@ -644,7 +644,7 @@
   </script>
 
   <script type="module">
-    import { initMarquee } from '../../dist/index.js';
+    import { initMarquee } from '../../../dist/index.js';
 
     async function init() {
       // initMarquee reads all data attributes automatically.

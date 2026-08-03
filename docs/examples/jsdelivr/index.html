@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Marquee — jsDelivr Demo</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #0a0a0a;
+      color: #fff;
+      min-height: 100vh;
+      padding: 2rem;
+    }
+
+    h1 {
+      font-size: 2rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .lede {
+      color: #888;
+      margin-bottom: 2rem;
+      font-size: 0.95rem;
+      max-width: 60ch;
+      line-height: 1.6;
+    }
+
+    .info-banner {
+      background: rgba(102, 126, 234, 0.1);
+      border: 1px solid rgba(102, 126, 234, 0.3);
+      padding: 1rem;
+      border-radius: 8px;
+      margin-bottom: 2.5rem;
+      font-size: 0.85rem;
+      color: #888;
+      max-width: 70ch;
+      line-height: 1.6;
+    }
+
+    .info-banner strong {
+      color: #667eea;
+    }
+
+    .section {
+      margin-bottom: 3rem;
+    }
+
+    .section-title {
+      font-size: 1rem;
+      color: #888;
+      margin-bottom: 1rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+    }
+
+    code {
+      background: rgba(255, 255, 255, 0.1);
+      padding: 0.2rem 0.5rem;
+      border-radius: 4px;
+      font-size: 0.85em;
+    }
+
+    /* ─── 3-LEVEL STRUCTURE ───────────────────────────────────────────────
+     * 1. Container: overflow hidden, max-width 100% — clips content
+     * 2. Track: display flex, width max-content — receives transform
+     * 3. Wrapper [data-marquee]: display flex, flex-shrink 0 — gets cloned
+     * ─────────────────────────────────────────────────────────────────── */
+
+    .c-marquee-container {
+      max-width: 100%;
+      overflow: hidden;
+      padding: 1rem 0;
+    }
+
+    .c-marquee-track {
+      display: flex;
+      width: max-content;
+    }
+
+    .c-marquee-wrapper {
+      display: flex;
+      flex-shrink: 0;
+    }
+
+    .c-marquee-item {
+      flex-shrink: 0;
+      padding: 0 2rem;
+      font-size: 2rem;
+      font-weight: 700;
+      white-space: nowrap;
+      color: transparent;
+      -webkit-text-stroke: 1px rgba(255, 255, 255, 0.35);
+    }
+
+    .c-marquee-item span {
+      color: #667eea;
+      -webkit-text-stroke: 0;
+    }
+
+    .status {
+      font-size: 0.85rem;
+      color: #666;
+      margin-top: 1rem;
+    }
+  </style>
+</head>
+<body>
+  <h1>Marquee — jsDelivr Demo</h1>
+  <p class="lede">
+    This page loads the package straight from jsDelivr. There is no build step, no bundler,
+    no import map and no separate GSAP tag — the <code>/+esm</code> endpoint resolves the
+    peer dependency for you.
+  </p>
+
+  <div class="info-banner">
+    <strong>Already loading GSAP yourself?</strong> Then don't use <code>/+esm</code> here.
+    It bundles its own copy of GSAP, so you would end up with <strong>two GSAP instances</strong> —
+    <code>Observer</code> registers against one core while your tweens run on the other, and drag
+    silently stops working. In that case load <code>marquee.browser.js</code> directly and map
+    <code>gsap</code> to your own copy with an import map.
+  </div>
+
+  <section class="section">
+    <h2 class="section-title">Left-to-right (default)</h2>
+    <div class="c-marquee-container">
+      <div class="c-marquee-track">
+        <div data-marquee class="c-marquee-wrapper">
+          <div data-marquee-item class="c-marquee-item">Design <span>&amp;</span> Development</div>
+          <div data-marquee-item class="c-marquee-item">Creative <span>&amp;</span> Strategy</div>
+          <div data-marquee-item class="c-marquee-item">Brand <span>&amp;</span> Identity</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <h2 class="section-title">Right-to-left, half speed</h2>
+    <div class="c-marquee-container">
+      <div class="c-marquee-track">
+        <div data-marquee data-marquee-direction="rtl" data-marquee-speed="0.5" class="c-marquee-wrapper">
+          <div data-marquee-item class="c-marquee-item">Motion <span>&amp;</span> Interaction</div>
+          <div data-marquee-item class="c-marquee-item">Performance <span>&amp;</span> Accessibility</div>
+          <div data-marquee-item class="c-marquee-item">Systems <span>&amp;</span> Tooling</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <p class="status" id="status">Loading from jsDelivr…</p>
+
+  <script type="module">
+    // @1 tracks the latest published 1.x, so this demo never goes stale.
+    // Pin to @X.Y.Z in production if you want a byte-for-byte reproducible load.
+    import { initMarquee } from 'https://cdn.jsdelivr.net/npm/@refokus-agency/marquee@1/+esm';
+
+    const status = document.getElementById('status');
+
+    try {
+      const marquees = await initMarquee();
+      status.textContent = `Initialized ${marquees.length} marquee instance(s) from jsDelivr.`;
+    } catch (error) {
+      status.textContent = `Failed to initialize: ${error.message}`;
+      console.error(error);
+    }
+  </script>
+</body>
+</html>

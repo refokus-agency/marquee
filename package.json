@@ -3,13 +3,11 @@
   "version": "0.0.0-development",
   "type": "module",
   "description": "GSAP-powered infinite marquee for horizontal and vertical seamless scrolling, with optional drag, pause-on-hover, and data-attribute configuration. Waits for images and defers init until in view.",
-  "main": "dist/index.js",
-  "module": "dist/index.js",
   "types": "dist/index.d.ts",
+  "jsdelivr": "./dist/marquee.browser.js",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "require": "./dist/index.js",
       "import": "./dist/index.js"
     }
   },
@@ -48,7 +46,7 @@
   },
   "homepage": "https://github.com/refokus-agency/marquee#readme",
   "scripts": {
-    "build": "tsc && npm run build:browser",
+    "build": "tsc && npm run build:browser && npm run validate:package",
     "build:browser": "vite build",
     "build:clean": "rimraf dist && npm run build",
     "build:watch": "vite build --watch",
@@ -63,12 +61,15 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "test:ui": "vitest --ui",
+    "validate:package": "npm run validate:exports && publint && attw --pack --profile esm-only",
+    "validate:exports": "node scripts/validate-exports.mjs",
     "commit": "cz"
   },
   "peerDependencies": {
     "gsap": "^3.12.0"
   },
   "devDependencies": {
+    "@arethetypeswrong/cli": "^0.18.5",
     "@biomejs/biome": "2.5.5",
     "@total-typescript/tsconfig": "^1.0.4",
     "@types/node": "^26.1.2",
@@ -79,6 +80,7 @@
     "esbuild": "^0.28.1",
     "gsap": "^3.12.0",
     "jsdom": "^26.0.0",
+    "publint": "^0.3.22",
     "rimraf": "^6.1.3",
     "typescript": "^5.8.3",
     "vite": "^8.1.5",
