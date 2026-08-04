@@ -31,6 +31,9 @@ node_modules/
 # Optional eslint cache
 .eslintcache
 
+# Coverage output (pnpm test:coverage)
+coverage/
+
 
 # dotenv environment variable files
 .env
