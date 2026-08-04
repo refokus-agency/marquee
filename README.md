@@ -49,7 +49,7 @@ A GSAP-powered infinite marquee component for smooth, continuous scrolling anima
 - Adjustable scroll speed
 - Optional drag/touch interaction
 - Pause on hover option
-- Honors `prefers-reduced-motion` — freezes instead of animating
+- Honors `prefers-reduced-motion` — freezes and becomes scrollable instead
 - Dynamic cloning based on container size (auto add/remove on resize)
 - Full TypeScript support
 - Programmatic control (pause, resume, destroy)
@@ -325,9 +325,21 @@ By default the marquee honors the operating system's reduced-motion setting. Whi
 `(prefers-reduced-motion: reduce)` matches, the marquee:
 
 - stops advancing and resets to its start position
+- sets `overflow-x: auto` on the **container** (or `overflow-y` for `ttb` / `btt`) so the content
+  stays reachable by native scrolling
 - kills the drag interaction, if `draggable` was enabled
 - reports `isPaused() === true`, and ignores `resume()` — the preference outranks it, so nothing
   moves until the preference itself changes
+
+The scroll affordance matters: a frozen marquee that still clips its overflow would hide every item
+past the container edge with no way to reach them. Native scrolling replaces the animation as the
+mechanism for getting to that content — which is also why drag is dropped rather than kept. Drag
+and native scroll compete for the same gesture on the same axis, and on touch they fight outright,
+so the one that guarantees reachability wins.
+
+This is the only style the library writes on an element you own. Whatever inline `overflow-x` /
+`overflow-y` the container already had is recorded and restored verbatim when the preference turns
+off or the instance is destroyed.
 
 The preference is watched live, not read once: flipping it at the OS level freezes or resumes an
 already-running marquee.
@@ -558,7 +570,7 @@ Additional options for `initMarquee()`:
 | `isReady()` | `boolean` | True after images loaded and init complete |
 | `setSpeed(speed)` | `void` | Update scroll speed |
 | `getSpeed()` | `number` | Get current speed |
-| `setDirection(dir)` | `void` | Update scroll direction (same axis only) |
+| `setDirection(dir)` | `void` | Update scroll direction — **same axis only** (`ltr` ↔ `rtl`, `ttb` ↔ `btt`). Crossing axes is not supported |
 | `getDirection()` | `MarqueeDirection` | Get current direction |
 | `isDestroyed()` | `boolean` | Check if destroyed |
 | `destroy()` | `void` | Clean up clones, listeners, and transforms |

@@ -40,8 +40,9 @@ export interface MarqueeOptions {
 
   /**
    * Honor the operating system's `prefers-reduced-motion: reduce` setting.
-   * While the preference is active the marquee freezes at its start position.
-   * Set to `false` to animate regardless of the preference.
+   * While the preference is active the marquee freezes at its start position
+   * and the container becomes natively scrollable so the content stays
+   * reachable. Set to `false` to animate regardless of the preference.
    * @default true
    */
   respectReducedMotion?: boolean;

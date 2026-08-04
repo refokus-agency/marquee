@@ -105,22 +105,26 @@ describe('initMarquee - reduced motion plumbing', () => {
 
   it('should opt out via data-marquee-respect-reduced-motion="false"', async () => {
     installMatchMedia(true);
-    renderMarkup('data-marquee-respect-reduced-motion="false"');
+    const container = renderMarkup(
+      'data-marquee-respect-reduced-motion="false"',
+    );
 
     const [marquee] = await initMarquee();
 
     expect(marquee!.isPaused()).toBe(false);
+    expect(container.style.overflowX).toBe('');
 
     marquee!.destroy();
   });
 
   it('should opt out via the respectReducedMotion config option', async () => {
     installMatchMedia(true);
-    renderMarkup();
+    const container = renderMarkup();
 
     const [marquee] = await initMarquee({ respectReducedMotion: false });
 
     expect(marquee!.isPaused()).toBe(false);
+    expect(container.style.overflowX).toBe('');
 
     marquee!.destroy();
   });

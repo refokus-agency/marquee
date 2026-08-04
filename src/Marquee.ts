@@ -42,6 +42,23 @@ const MAX_FRAME_DELTA_MS = 100;
 const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)';
 
 /**
+ * The overflow value written on the container while reduced motion is active,
+ * so the content stays reachable by native scrolling instead of by animation.
+ */
+const REDUCED_MOTION_OVERFLOW = 'auto';
+
+/**
+ * The container overflow declaration the library replaced while reduced motion is
+ * active, captured so it can be put back verbatim.
+ */
+interface SavedContainerOverflow {
+  /** The axis-specific property that was overwritten. */
+  property: 'overflowX' | 'overflowY';
+  /** The inline value present before the library wrote its own; '' when none was set. */
+  previousInlineValue: string;
+}
+
+/**
  * Marquee class for creating infinite scrolling animations.
  *
  * Requires a 3-level DOM structure:
@@ -89,6 +106,7 @@ export class Marquee {
   private wrap: ((value: number) => number) | null = null;
   private reducedMotion: boolean = false;
   private reducedMotionMedia: gsap.MatchMedia | null = null;
+  private savedOverflow: SavedContainerOverflow | null = null;
 
   /**
    * Creates a new Marquee instance and waits for images before initializing.
@@ -322,22 +340,59 @@ export class Marquee {
     });
   }
 
-  /** Freezes the marquee at its start position. */
+  /** Freezes the marquee at its start position and makes the container scrollable. */
   private enterReducedMotion(): void {
     this.reducedMotion = true;
     this.stopMotion();
     this.resetPosition();
+    this.applyScrollOverflow();
   }
 
   /** Undoes {@link enterReducedMotion} and puts the marquee back in motion. */
   private exitReducedMotion(): void {
     this.reducedMotion = false;
+    // Zeroed before the overflow goes back: `overflow: hidden` preserves the
+    // scroll offset, so a marquee left displaced by the user would otherwise
+    // animate from that offset with no way to scroll back.
+    this.resetContainerScroll();
+    this.restoreContainerOverflow();
     this.startMotion();
   }
 
   private resetPosition(): void {
     this.position = 0;
     gsap.set(this.track, this.isVertical() ? { y: 0 } : { x: 0 });
+  }
+
+  /**
+   * Writes the scroll overflow for the active axis, recording whatever inline
+   * value it replaced. This is the only style the library ever writes on the
+   * container, an element the integrator owns — hence the save/restore pair.
+   */
+  private applyScrollOverflow(): void {
+    const property: SavedContainerOverflow['property'] = this.isVertical()
+      ? 'overflowY'
+      : 'overflowX';
+
+    this.savedOverflow = {
+      property,
+      previousInlineValue: this.container.style[property],
+    };
+    this.container.style[property] = REDUCED_MOTION_OVERFLOW;
+  }
+
+  /** Puts the recorded inline overflow back verbatim; '' clears the declaration. */
+  private restoreContainerOverflow(): void {
+    if (!this.savedOverflow) return;
+
+    const { property, previousInlineValue } = this.savedOverflow;
+    this.container.style[property] = previousInlineValue;
+    this.savedOverflow = null;
+  }
+
+  private resetContainerScroll(): void {
+    this.container.scrollLeft = 0;
+    this.container.scrollTop = 0;
   }
 
   private setupHoverPause(): void {
@@ -410,7 +465,24 @@ export class Marquee {
   }
 
   public setDirection(direction: MarqueeDirection): void {
+    const wasVertical = this.isVertical();
     this.direction = direction;
+
+    // Crossing axes is NOT a supported operation (see the README): `moveTo` and
+    // `originalSize` stay bound to the old axis, so the animation would keep
+    // running the wrong one — tracked separately in #69. This branch is purely
+    // defensive: if an integrator crosses anyway while frozen, at least the
+    // container is left consistent rather than holding a scrollbar on an axis
+    // nothing scrolls and none on the axis that needs it.
+    if (this.reducedMotion && this.isVertical() !== wasVertical) {
+      // Zeroed before the declaration moves, for the same reason
+      // exitReducedMotion() does it: handing the old axis back to `overflow:
+      // hidden` PRESERVES whatever offset the user scrolled to, stranding that
+      // content off-screen with no scrollbar left on that axis to reach it.
+      this.resetContainerScroll();
+      this.restoreContainerOverflow();
+      this.applyScrollOverflow();
+    }
   }
 
   public getDirection(): MarqueeDirection {
@@ -443,6 +515,11 @@ export class Marquee {
     this.reducedMotionMedia?.kill(true);
     this.reducedMotionMedia = null;
     this.reducedMotion = false;
+
+    // Belt and braces for the paths that never registered a context: both are
+    // no-ops once the cleanup above has already run.
+    this.resetContainerScroll();
+    this.restoreContainerOverflow();
 
     if (this.resizeHandler) {
       window.removeEventListener('resize', this.resizeHandler);

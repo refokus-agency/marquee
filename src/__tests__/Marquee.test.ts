@@ -307,6 +307,139 @@ describe('Marquee - Reduced Motion', () => {
     marquee.destroy();
   });
 
+  it('should apply a scroll overflow on the horizontal axis for ltr/rtl', async () => {
+    installMatchMedia(true);
+    const { container, wrapper } = buildFixture();
+
+    const marquee = new Marquee(wrapper, { direction: 'rtl' });
+    await marquee.ready;
+
+    expect(container.style.overflowX).toBe('auto');
+    expect(container.style.overflowY).toBe('');
+
+    marquee.destroy();
+  });
+
+  it('should apply a scroll overflow on the vertical axis for ttb/btt', async () => {
+    installMatchMedia(true);
+    const { container, wrapper } = buildFixture();
+
+    const marquee = new Marquee(wrapper, { direction: 'ttb' });
+    await marquee.ready;
+
+    expect(container.style.overflowY).toBe('auto');
+    expect(container.style.overflowX).toBe('');
+
+    marquee.destroy();
+  });
+
+  it('should restore an overflow the integrator had already set inline', async () => {
+    const media = installMatchMedia(false);
+    const { container, wrapper } = buildFixture();
+    container.style.overflowX = 'clip';
+
+    const marquee = new Marquee(wrapper);
+    await marquee.ready;
+
+    await media.flip(true);
+    expect(container.style.overflowX).toBe('auto');
+
+    await media.flip(false);
+
+    expect(container.style.overflowX).toBe('clip');
+
+    marquee.destroy();
+  });
+
+  it('should clear the overflow declaration when none was set inline', async () => {
+    const media = installMatchMedia(true);
+    const { container, wrapper } = buildFixture();
+
+    const marquee = new Marquee(wrapper);
+    await marquee.ready;
+    expect(container.style.overflowX).toBe('auto');
+
+    await media.flip(false);
+
+    expect(container.style.overflowX).toBe('');
+
+    marquee.destroy();
+  });
+
+  it('should reset both scroll offsets when reduced motion becomes inactive', async () => {
+    const media = installMatchMedia(true);
+    const { container, wrapper } = buildFixture();
+
+    const marquee = new Marquee(wrapper);
+    await marquee.ready;
+
+    // The user scrolled the frozen marquee. overflow: hidden preserves that
+    // offset, so without a reset the marquee would animate from it.
+    container.scrollLeft = 500;
+    container.scrollTop = 300;
+
+    await media.flip(false);
+
+    expect(container.scrollLeft).toBe(0);
+    expect(container.scrollTop).toBe(0);
+
+    marquee.destroy();
+  });
+
+  it('should move the overflow to the new axis when setDirection() flips it', async () => {
+    installMatchMedia(true);
+    const { container, wrapper } = buildFixture();
+
+    const marquee = new Marquee(wrapper);
+    await marquee.ready;
+    expect(container.style.overflowX).toBe('auto');
+
+    marquee.setDirection('ttb');
+
+    expect(container.style.overflowX).toBe('');
+    expect(container.style.overflowY).toBe('auto');
+
+    marquee.destroy();
+  });
+
+  it('should reset the abandoned axis scroll offset when setDirection() flips it', async () => {
+    installMatchMedia(true);
+    const { container, wrapper } = buildFixture();
+
+    const marquee = new Marquee(wrapper);
+    await marquee.ready;
+
+    // The user scrolled the frozen marquee along the horizontal axis.
+    container.scrollLeft = 250;
+
+    marquee.setDirection('ttb');
+
+    // Restoring the horizontal overflow hands that axis back to the stylesheet's
+    // `overflow: hidden`, which PRESERVES the offset — so leaving it would strand
+    // the content 250px off-screen with no scrollbar left to bring it back.
+    expect(container.scrollLeft).toBe(0);
+    expect(container.style.overflowY).toBe('auto');
+
+    marquee.destroy();
+  });
+
+  it('should restore the container on destroy() while reduced motion is active', async () => {
+    installMatchMedia(true);
+    const { container, wrapper } = buildFixture();
+
+    const marquee = new Marquee(wrapper);
+    await marquee.ready;
+    container.scrollLeft = 500;
+    container.scrollTop = 300;
+
+    marquee.destroy();
+
+    expect(container.style.overflowX).toBe('');
+    expect(container.scrollLeft).toBe(0);
+    expect(container.scrollTop).toBe(0);
+    expect(liveTickerCallbacks()).toHaveLength(0);
+  });
+
   it('should resume motion when reduced motion becomes inactive', async () => {
     const media = installMatchMedia(true);
     const { wrapper } = buildFixture();
@@ -359,15 +492,17 @@ describe('Marquee - Reduced Motion', () => {
     marquee.destroy();
   });
 
-  it('should animate when respectReducedMotion is false', async () => {
+  it('should animate and read no overflow when respectReducedMotion is false', async () => {
     installMatchMedia(true);
-    const { wrapper } = buildFixture();
+    const { container, wrapper } = buildFixture();
 
     const marquee = new Marquee(wrapper, { respectReducedMotion: false });
     await marquee.ready;
 
     expect(liveTickerCallbacks()).toHaveLength(1);
     expect(marquee.isPaused()).toBe(false);
+    expect(container.style.overflowX).toBe('');
+    expect(container.style.overflowY).toBe('');
 
     marquee.destroy();
   });
@@ -386,7 +521,7 @@ describe('Marquee - Reduced Motion', () => {
 
   it('should animate when matchMedia exists but the feature is unsupported', async () => {
     installUnsupportedMatchMedia();
-    const { wrapper } = buildFixture();
+    const { container, wrapper } = buildFixture();
 
     const marquee = new Marquee(wrapper);
     await marquee.ready;
@@ -397,6 +532,7 @@ describe('Marquee - Reduced Motion', () => {
     // leaving the marquee permanently dead.
     expect(liveTickerCallbacks()).toHaveLength(1);
     expect(marquee.isPaused()).toBe(false);
+    expect(container.style.overflowX).toBe('');
 
     marquee.destroy();
   });
@@ -444,16 +580,23 @@ describe('Marquee - Reduced Motion', () => {
     await media.flip(true);
 
     // GSAP's `_media` registry is module-global, so a shared-state bug would
-    // show up as one instance freezing and the other not.
+    // show up as one instance freezing and the other not — or as one writing on
+    // the other's container. Each must freeze on its OWN axis.
     expect(marqueeA.isPaused()).toBe(true);
     expect(marqueeB.isPaused()).toBe(true);
     expect(liveTickerCallbacks()).toHaveLength(0);
+    expect(a.container.style.overflowX).toBe('auto');
+    expect(a.container.style.overflowY).toBe('');
+    expect(b.container.style.overflowY).toBe('auto');
+    expect(b.container.style.overflowX).toBe('');
 
     // Destroying one must not strand the other frozen.
     marqueeA.destroy();
     await media.flip(false);
 
     expect(marqueeB.isPaused()).toBe(false);
+    expect(b.container.style.overflowY).toBe('');
+    expect(a.container.style.overflowX).toBe('');
 
     marqueeB.destroy();
   });
@@ -490,7 +633,7 @@ describe('Marquee - Reduced Motion', () => {
 
   it('should stop responding to preference changes after destroy()', async () => {
     const media = installMatchMedia(false);
-    const { wrapper } = buildFixture();
+    const { container, wrapper } = buildFixture();
 
     const marquee = new Marquee(wrapper);
     await marquee.ready;
@@ -498,9 +641,11 @@ describe('Marquee - Reduced Motion', () => {
     marquee.destroy();
 
     // destroy() kills the gsap.matchMedia() instance, which deregisters its
-    // context. A surviving context would keep acting on a marquee that is gone.
+    // context. A surviving context would still write on a container the marquee
+    // no longer owns.
     await media.flip(true);
 
+    expect(container.style.overflowX).toBe('');
     expect(liveTickerCallbacks()).toHaveLength(0);
   });
 });
