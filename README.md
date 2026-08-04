@@ -16,7 +16,7 @@ A GSAP-powered infinite marquee component for smooth, continuous scrolling anima
   - [HTML Structure](#html-structure)
   - [Basic Usage](#basic-usage)
   - [With Options](#with-options)
-  - [Custom Selectors](#custom-selectors)
+  - [Custom Selector](#custom-selector)
   - [Using the Marquee Class Directly](#using-the-marquee-class-directly)
   - [Factory Function](#factory-function)
   - [Instance Control](#instance-control)
@@ -200,12 +200,11 @@ const marquees = await initMarquee({
 });
 ```
 
-### Custom Selectors
+### Custom Selector
 
 ```typescript
 const marquees = await initMarquee({
   wrapperSelector: '.my-marquee',
-  itemSelector: '.my-item',
 });
 ```
 
@@ -463,7 +462,7 @@ Additional options for `initMarquee()`:
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
 | `wrapperSelector` | `string` | `'[data-marquee]'` | Selector for wrapper elements |
-| `itemSelector` | `string` | `'[data-marquee-item]'` | Selector for items inside wrapper |
+| `itemSelector` | `string` | `'[data-marquee-item]'` | **Deprecated** — has no effect and is ignored. Kept for backward compatibility; will be removed in `2.0.0` ([#67](https://github.com/refokus-agency/marquee/issues/67)) |
 | `directionAttribute` | `string` | `'data-marquee-direction'` | Attribute name for direction |
 | `speedAttribute` | `string` | `'data-marquee-speed'` | Attribute name for speed |
 | `draggableAttribute` | `string` | `'data-marquee-draggable'` | Attribute name for draggable |
