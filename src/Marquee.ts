@@ -131,8 +131,7 @@ export class Marquee {
     this.moveTo = this.createQuickTo();
 
     this.updateClones();
-    this.setupAnimation();
-    this.setupDragInteraction();
+    this.startMotion();
     this.setupHoverPause();
     this.setupResizeHandler();
 
@@ -211,8 +210,9 @@ export class Marquee {
     }
   }
 
-  private setupAnimation(): void {
-    this.tickerCallback = (_time: number, deltaTime: number) => {
+  /** Builds the per-frame advance function. Registration is {@link startMotion}'s job. */
+  private createTickerCallback(): (time: number, deltaTime: number) => void {
+    return (_time: number, deltaTime: number) => {
       if (this.paused || this.destroyed || !this.moveTo) return;
 
       const directionMultiplier =
@@ -221,12 +221,36 @@ export class Marquee {
       this.position -= (delta / 15) * this.speed * directionMultiplier;
       this.moveTo(this.position);
     };
+  }
 
-    gsap.ticker.add(this.tickerCallback);
+  /**
+   * Puts the marquee in motion: registers the ticker and creates the drag
+   * Observer. Idempotent — a live `tickerCallback` means motion is already on.
+   */
+  private startMotion(): void {
+    if (!this.tickerCallback) {
+      this.tickerCallback = this.createTickerCallback();
+      gsap.ticker.add(this.tickerCallback);
+    }
+
+    this.setupDragInteraction();
+  }
+
+  /** Takes the marquee out of motion: deregisters the ticker, kills the drag Observer. */
+  private stopMotion(): void {
+    if (this.tickerCallback) {
+      gsap.ticker.remove(this.tickerCallback);
+      this.tickerCallback = null;
+    }
+
+    if (this.observer) {
+      this.observer.kill();
+      this.observer = null;
+    }
   }
 
   private setupDragInteraction(): void {
-    if (!this.options.draggable) return;
+    if (!this.options.draggable || this.observer) return;
 
     const vertical = this.isVertical();
     this.observer = Observer.create({
@@ -321,15 +345,7 @@ export class Marquee {
     // Remove initialization marker
     this.element.removeAttribute('data-marquee-initialized');
 
-    if (this.tickerCallback) {
-      gsap.ticker.remove(this.tickerCallback);
-      this.tickerCallback = null;
-    }
-
-    if (this.observer) {
-      this.observer.kill();
-      this.observer = null;
-    }
+    this.stopMotion();
 
     if (this.resizeHandler) {
       window.removeEventListener('resize', this.resizeHandler);
