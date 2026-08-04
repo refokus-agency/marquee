@@ -37,6 +37,14 @@ export interface MarqueeOptions {
    * @default false
    */
   pauseOnHover?: boolean;
+
+  /**
+   * Honor the operating system's `prefers-reduced-motion: reduce` setting.
+   * While the preference is active the marquee freezes at its start position.
+   * Set to `false` to animate regardless of the preference.
+   * @default true
+   */
+  respectReducedMotion?: boolean;
 }
 
 /**
@@ -82,4 +90,10 @@ export interface MarqueeConfig extends MarqueeOptions {
    * @default 'data-marquee-pause-on-hover'
    */
   pauseOnHoverAttribute?: string;
+
+  /**
+   * Attribute name to read respectReducedMotion from the element
+   * @default 'data-marquee-respect-reduced-motion'
+   */
+  respectReducedMotionAttribute?: string;
 }

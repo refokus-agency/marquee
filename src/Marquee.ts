@@ -18,6 +18,7 @@ const DEFAULT_OPTIONS: Required<MarqueeOptions> = {
   draggable: false,
   dragEase: 0.5,
   pauseOnHover: false,
+  respectReducedMotion: true,
 };
 
 const RESIZE_DEBOUNCE_MS = 150;
@@ -28,6 +29,17 @@ const RESIZE_DEBOUNCE_MS = 150;
  * leaps forward when rAF resumes. See {@link clampFrameDelta}.
  */
 const MAX_FRAME_DELTA_MS = 100;
+
+/**
+ * The media query the reduced-motion freeze is gated on.
+ *
+ * Deliberately `reduce` rather than the more obvious `no-preference`: on a
+ * browser that does not support the feature at all, BOTH queries evaluate
+ * false. A `no-preference`-gated ticker would therefore never register and the
+ * marquee would sit permanently dead there. Animating by default and gating
+ * only the freeze keeps the same intent with a safe fallback.
+ */
+const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)';
 
 /**
  * Marquee class for creating infinite scrolling animations.
@@ -75,6 +87,8 @@ export class Marquee {
   private boundMouseLeave: (() => void) | null = null;
   private moveTo: gsap.QuickToFunc | null = null;
   private wrap: ((value: number) => number) | null = null;
+  private reducedMotion: boolean = false;
+  private reducedMotionMedia: gsap.MatchMedia | null = null;
 
   /**
    * Creates a new Marquee instance and waits for images before initializing.
@@ -131,7 +145,9 @@ export class Marquee {
     this.moveTo = this.createQuickTo();
 
     this.updateClones();
-    this.startMotion();
+    // Owns starting motion (ticker + drag Observer) and, when the preference is
+    // honored, the freeze/unfreeze lifecycle around it.
+    this.setupReducedMotionGate();
     this.setupHoverPause();
     this.setupResizeHandler();
 
@@ -239,6 +255,8 @@ export class Marquee {
    * Observer. Idempotent — a live `tickerCallback` means motion is already on.
    */
   private startMotion(): void {
+    if (this.destroyed) return;
+
     if (!this.tickerCallback) {
       this.tickerCallback = this.createTickerCallback();
       gsap.ticker.add(this.tickerCallback);
@@ -275,6 +293,53 @@ export class Marquee {
     });
   }
 
+  /**
+   * Starts motion, then — when the preference is honored and the browser can
+   * report it — wires {@link REDUCED_MOTION_QUERY} to the freeze/unfreeze pair.
+   *
+   * If the query already matches, GSAP runs the body synchronously here, so the
+   * ticker and Observer created above are torn down within the same tick. That
+   * micro-churn is the price of a structure that is safe on browsers which
+   * cannot report the preference at all.
+   */
+  private setupReducedMotionGate(): void {
+    this.startMotion();
+
+    if (
+      !this.options.respectReducedMotion ||
+      typeof window.matchMedia !== 'function'
+    ) {
+      return;
+    }
+
+    this.reducedMotionMedia = gsap.matchMedia();
+    this.reducedMotionMedia.add(REDUCED_MOTION_QUERY, (context) => {
+      // ignore() keeps the freeze's gsap.set out of the context's revert list.
+      // Recorded, it would be undone on exit — putting the track back at its
+      // pre-freeze offset just as motion resumes from position 0.
+      context.ignore(() => this.enterReducedMotion());
+      return () => this.exitReducedMotion();
+    });
+  }
+
+  /** Freezes the marquee at its start position. */
+  private enterReducedMotion(): void {
+    this.reducedMotion = true;
+    this.stopMotion();
+    this.resetPosition();
+  }
+
+  /** Undoes {@link enterReducedMotion} and puts the marquee back in motion. */
+  private exitReducedMotion(): void {
+    this.reducedMotion = false;
+    this.startMotion();
+  }
+
+  private resetPosition(): void {
+    this.position = 0;
+    gsap.set(this.track, this.isVertical() ? { y: 0 } : { x: 0 });
+  }
+
   private setupHoverPause(): void {
     if (!this.options.pauseOnHover) return;
 
@@ -302,6 +367,14 @@ export class Marquee {
     this.wrap = gsap.utils.wrap(-this.originalSize, 0);
     this.moveTo = this.createQuickTo();
 
+    if (this.reducedMotion) {
+      // `gsap.utils.wrap(-N, 0)(0)` returns -N because the max is exclusive, and
+      // moveTo carries that same wrap as a modifier. Either path would displace a
+      // marquee that is supposed to stay frozen, so write the transform directly.
+      this.resetPosition();
+      return;
+    }
+
     this.position = this.wrap(this.position);
     this.moveTo(this.position);
   }
@@ -314,8 +387,14 @@ export class Marquee {
     this.paused = false;
   }
 
+  /**
+   * True when the marquee is not advancing — whether because {@link pause} was
+   * called or because reduced motion has frozen it. Under reduced motion
+   * {@link resume} flips the internal flag but nothing moves, so reporting
+   * `false` there would be a lie.
+   */
   public isPaused(): boolean {
-    return this.paused;
+    return this.paused || this.reducedMotion;
   }
 
   public isReady(): boolean {
@@ -357,6 +436,13 @@ export class Marquee {
     this.element.removeAttribute('data-marquee-initialized');
 
     this.stopMotion();
+
+    // kill(true) reverts the contexts, which runs exitReducedMotion. It returns
+    // early on the startMotion call because `destroyed` is already true, so this
+    // releases the gate without resurrecting the ticker.
+    this.reducedMotionMedia?.kill(true);
+    this.reducedMotionMedia = null;
+    this.reducedMotion = false;
 
     if (this.resizeHandler) {
       window.removeEventListener('resize', this.resizeHandler);

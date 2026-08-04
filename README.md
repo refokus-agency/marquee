@@ -22,6 +22,7 @@ A GSAP-powered infinite marquee component for smooth, continuous scrolling anima
   - [Instance Control](#instance-control)
   - [Data Attributes](#data-attributes)
 - [Accessibility](#accessibility)
+  - [Reduced Motion](#reduced-motion)
   - [Clones and the Accessibility Tree](#clones-and-the-accessibility-tree)
 - [Webflow Setup](#webflow-setup)
   - [If the page already loads GSAP](#if-the-page-already-loads-gsap)
@@ -48,6 +49,7 @@ A GSAP-powered infinite marquee component for smooth, continuous scrolling anima
 - Adjustable scroll speed
 - Optional drag/touch interaction
 - Pause on hover option
+- Honors `prefers-reduced-motion` — freezes instead of animating
 - Dynamic cloning based on container size (auto add/remove on resize)
 - Full TypeScript support
 - Programmatic control (pause, resume, destroy)
@@ -311,10 +313,61 @@ Configure each marquee instance directly in HTML — no JS config needed when us
 | `data-marquee-speed` | any number, e.g. `2` | `1` |
 | `data-marquee-draggable` | `true` \| `false` | `false` |
 | `data-marquee-pause-on-hover` | `true` \| `false` | `false` |
+| `data-marquee-respect-reduced-motion` | `true` \| `false` | `true` |
 
 ---
 
 ## Accessibility
+
+### Reduced Motion
+
+By default the marquee honors the operating system's reduced-motion setting. While
+`(prefers-reduced-motion: reduce)` matches, the marquee:
+
+- stops advancing and resets to its start position
+- kills the drag interaction, if `draggable` was enabled
+- reports `isPaused() === true`, and ignores `resume()` — the preference outranks it, so nothing
+  moves until the preference itself changes
+
+The preference is watched live, not read once: flipping it at the OS level freezes or resumes an
+already-running marquee.
+
+To animate regardless of the preference, opt out:
+
+```typescript
+// Per instance
+const marquee = await createMarquee('#my-marquee', { respectReducedMotion: false });
+
+// Or for every marquee on the page
+await initMarquee({ respectReducedMotion: false });
+```
+
+```html
+<!-- Or per element, with initMarquee() -->
+<div data-marquee data-marquee-respect-reduced-motion="false">…</div>
+```
+
+> `respectReducedMotion: false` opts out of **honoring** the preference, not out of detecting it.
+> Setting it to `false` means "animate anyway", so use it only where motion is essential to what
+> the content communicates.
+
+Browsers that cannot report the preference at all animate normally, as does any environment without
+`window.matchMedia`.
+
+#### Known limitation: two preference changes less than 2ms apart
+
+The live watching runs on `gsap.matchMedia()`, and GSAP coalesces media-change events into one pass
+every 2ms, shared across every `gsap.matchMedia()` user on the page. That coalescing is what keeps
+one preference change from being processed once per registered query, but it cannot tell duplicate
+events apart from two genuinely different values. When the second value is dropped, GSAP's record of
+the preference does not advance either, so the marquee can stay out of sync with the real setting
+until the next media change anywhere on the page resynchronizes it.
+
+In practice this is a testing concern, not a user-facing one: the first change after page load is
+always applied, and nobody can toggle an OS setting twice within 2ms. What *can* is an automated
+suite driving the preference through something like Playwright's `emulateMediaFeatures()`. **If you
+assert reduced-motion behavior in tests, leave more than 2ms between flips** — otherwise a pass or a
+failure may be measuring the dropped event rather than the marquee.
 
 ### Clones and the Accessibility Tree
 
@@ -323,7 +376,8 @@ attribute, which removes it from both the accessibility tree and the tab order �
 reader would announce each item several times over, and every cloned link would become a tab stop
 that goes nowhere.
 
-The attribute goes on every clone the marquee creates, with no opt-out. Only the original wrapper
+The attribute goes on every clone the marquee creates, independent of `respectReducedMotion` and of
+the motion preference. Only the original wrapper
 stays interactive, so **anything focusable or clickable inside a marquee is reachable exactly
 once**, in the original. If your integration relied on cloned links being clickable, that no longer
 works.
@@ -478,6 +532,7 @@ separate shim files instead of inline `data:` URLs.
 | `draggable` | `boolean` | `false` | Enable drag/touch interaction |
 | `pauseOnHover` | `boolean` | `false` | Pause animation on hover |
 | `dragEase` | `number` | `0.5` | Drag easing duration in seconds |
+| `respectReducedMotion` | `boolean` | `true` | Honor `prefers-reduced-motion` — see [Reduced Motion](#reduced-motion) |
 
 ### `MarqueeConfig` (extends `MarqueeOptions`)
 
@@ -491,14 +546,15 @@ Additional options for `initMarquee()`:
 | `speedAttribute` | `string` | `'data-marquee-speed'` | Attribute name for speed |
 | `draggableAttribute` | `string` | `'data-marquee-draggable'` | Attribute name for draggable |
 | `pauseOnHoverAttribute` | `string` | `'data-marquee-pause-on-hover'` | Attribute name for pauseOnHover |
+| `respectReducedMotionAttribute` | `string` | `'data-marquee-respect-reduced-motion'` | Attribute name for respectReducedMotion |
 
 ### `Marquee` Instance Methods
 
 | Method | Return | Description |
 |--------|--------|-------------|
 | `pause()` | `void` | Pause the animation |
-| `resume()` | `void` | Resume the animation |
-| `isPaused()` | `boolean` | Check if paused |
+| `resume()` | `void` | Resume the animation — no effect while reduced motion is active, see [Reduced Motion](#reduced-motion) |
+| `isPaused()` | `boolean` | Check if paused — also `true` while reduced motion is active |
 | `isReady()` | `boolean` | True after images loaded and init complete |
 | `setSpeed(speed)` | `void` | Update scroll speed |
 | `getSpeed()` | `number` | Get current speed |
