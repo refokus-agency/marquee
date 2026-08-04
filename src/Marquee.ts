@@ -200,6 +200,7 @@ export class Marquee {
       const clone = this.element.cloneNode(true) as HTMLElement;
       clone.setAttribute('data-marquee-clone', 'true');
       clone.removeAttribute('id');
+      this.markInert(clone);
       this.track.appendChild(clone);
       this.clones.push(clone);
     }
@@ -208,6 +209,16 @@ export class Marquee {
       const clone = this.clones.pop();
       clone?.remove();
     }
+  }
+
+  /**
+   * Excludes a clone from the accessibility tree AND the tab order. Clones
+   * duplicate whatever the wrapper holds, so without this every cloned link or
+   * button becomes a repeated announcement and a ghost tab stop. `inert` covers
+   * both; `aria-hidden` would only have covered the former.
+   */
+  private markInert(element: HTMLElement): void {
+    element.setAttribute('inert', '');
   }
 
   /** Builds the per-frame advance function. Registration is {@link startMotion}'s job. */

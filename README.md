@@ -21,6 +21,8 @@ A GSAP-powered infinite marquee component for smooth, continuous scrolling anima
   - [Factory Function](#factory-function)
   - [Instance Control](#instance-control)
   - [Data Attributes](#data-attributes)
+- [Accessibility](#accessibility)
+  - [Clones and the Accessibility Tree](#clones-and-the-accessibility-tree)
 - [Webflow Setup](#webflow-setup)
   - [If the page already loads GSAP](#if-the-page-already-loads-gsap)
 - [API Reference](#api-reference)
@@ -309,6 +311,28 @@ Configure each marquee instance directly in HTML — no JS config needed when us
 | `data-marquee-speed` | any number, e.g. `2` | `1` |
 | `data-marquee-draggable` | `true` \| `false` | `false` |
 | `data-marquee-pause-on-hover` | `true` \| `false` | `false` |
+
+---
+
+## Accessibility
+
+### Clones and the Accessibility Tree
+
+The marquee fills the track by cloning its wrapper. Every clone it creates gets the `inert`
+attribute, which removes it from both the accessibility tree and the tab order — otherwise a screen
+reader would announce each item several times over, and every cloned link would become a tab stop
+that goes nowhere.
+
+The attribute goes on every clone the marquee creates, with no opt-out. Only the original wrapper
+stays interactive, so **anything focusable or clickable inside a marquee is reachable exactly
+once**, in the original. If your integration relied on cloned links being clickable, that no longer
+works.
+
+The exclusion itself depends on browser support for `inert` — Chrome 102+, Safari 15.5+, Firefox
+112+. On anything older the attribute is inert itself: clones stay focusable and get announced. There
+is no fallback, deliberately. `aria-hidden` would have hidden them from screen readers while leaving
+them in the tab order, which trades one defect for a worse one — a focusable element with no
+accessible name.
 
 ---
 
