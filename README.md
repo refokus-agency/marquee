@@ -376,10 +376,14 @@ await initMarquee({ respectReducedMotion: false });
 Browsers that cannot report the preference at all animate normally, as does any environment without
 `window.matchMedia`.
 
-#### Known limitation: two preference changes less than 2ms apart
+#### Known limitations
 
-The live watching runs on `gsap.matchMedia()`, and GSAP coalesces media-change events into one pass
-every 2ms, shared across every `gsap.matchMedia()` user on the page. That coalescing is what keeps
+The live watching runs on `gsap.matchMedia()`, which brings two GSAP behaviors with it. Neither is
+specific to this library — they affect every `gsap.matchMedia()` consumer — but both are worth
+knowing about.
+
+**Two preference changes less than 2ms apart: the second is dropped.** GSAP coalesces media-change
+events into one pass every 2ms, shared across every `gsap.matchMedia()` user on the page. That coalescing is what keeps
 one preference change from being processed once per registered query, but it cannot tell duplicate
 events apart from two genuinely different values. When the second value is dropped, GSAP's record of
 the preference does not advance either, so the marquee can stay out of sync with the real setting
@@ -390,6 +394,12 @@ always applied, and nobody can toggle an OS setting twice within 2ms. What *can*
 suite driving the preference through something like Playwright's `emulateMediaFeatures()`. **If you
 assert reduced-motion behavior in tests, leave more than 2ms between flips** — otherwise a pass or a
 failure may be measuring the dropped event rather than the marquee.
+
+**The native media-query listener outlives `destroy()`.** `destroy()` releases the
+`gsap.matchMedia()` context, but GSAP never calls `removeListener` on the underlying
+`MediaQueryList`, and exposes no API to do it. The destroyed instance is still garbage-collectible —
+GSAP's handler is a module-level function holding no per-instance state — but the native listener
+count grows across mount/unmount cycles in SPA-style usage.
 
 ### Clones and the Accessibility Tree
 
@@ -503,6 +513,9 @@ cores** — roughly 70 kB of duplicated payload and a second ticker loop. Marque
 correctly, but it runs on an instance your own code cannot see: shared state such as a global
 timeline, `gsap.matchMedia()` contexts, or plugins you registered on the page's core does not
 carry across.
+
+[Reduced motion](#reduced-motion) is unaffected by this: marquee's own `gsap.matchMedia()` context
+only runs callbacks — it never creates tweens — so it works on whichever core the package imported.
 
 To run marquee on the GSAP you already have, load the browser bundle directly and map the `gsap`
 specifiers onto the existing global. An import map can only point a specifier at a URL, so the

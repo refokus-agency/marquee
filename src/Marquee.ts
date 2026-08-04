@@ -522,7 +522,7 @@ export class Marquee {
 
     // kill(true) reverts the contexts, which runs exitReducedMotion. It returns
     // early on the startMotion call because `destroyed` is already true, so this
-    // releases the gate without resurrecting the ticker.
+    // restores the container without resurrecting the ticker.
     this.reducedMotionMedia?.kill(true);
     this.reducedMotionMedia = null;
     this.reducedMotion = false;
