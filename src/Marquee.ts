@@ -359,9 +359,25 @@ export class Marquee {
     this.startMotion();
   }
 
+  /**
+   * Puts the track back at offset 0 and retires the tween that was carrying it.
+   *
+   * The ticker hands `moveTo` a new target every frame, so at any moment there
+   * is a quickTo tween in flight with up to `dragEase` seconds left to run. The
+   * `gsap.set` below lands, and then that tween keeps applying values over the
+   * following frames — dragging the track back to its pre-freeze offset. So the
+   * tween has to be stood down, and `invalidate()` has to come after the set so
+   * the tween re-reads 0 as its start value rather than the offset it recorded.
+   *
+   * Pausing rather than killing is deliberate: killing the tween behind a
+   * quickTo leaves that function permanently inert, and {@link exitReducedMotion}
+   * resumes motion through the very same `moveTo`.
+   */
   private resetPosition(): void {
     this.position = 0;
+    this.moveTo?.tween.pause();
     gsap.set(this.track, this.isVertical() ? { y: 0 } : { x: 0 });
+    this.moveTo?.tween.invalidate();
   }
 
   /**

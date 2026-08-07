@@ -149,6 +149,24 @@ interface MarqueeFixture {
 const WRAPPER_SIZE = 100;
 const CONTAINER_SIZE = 300;
 
+/** A frame long enough to move the track a visible distance in one advance. */
+const FRAME_DELTA_MS = 100;
+
+/** The shape `gsap.ticker.add()` receives, and the marquee's per-frame advance. */
+type TickerCallback = (time: number, deltaTime: number) => void;
+
+/**
+ * Drives GSAP's global timeline forward by hand.
+ *
+ * jsdom never advances it between assertions, so a tween left in flight simply
+ * never applies another value — which is exactly how a freeze that forgets to
+ * retire its tween can look correct to a test suite. Anything asserting that a
+ * transform *stays* put has to step past the tween's duration first.
+ */
+function advanceGlobalTimeline(seconds: number): void {
+  gsap.updateRoot(gsap.globalTimeline.time() + seconds);
+}
+
 /**
  * jsdom reports every element as zero-sized, which makes measurePeriod() return
  * 0 and updateClones() compute a NaN clone count — so no clones are ever
@@ -303,6 +321,59 @@ describe('Marquee - Reduced Motion', () => {
     await media.flip(true);
 
     expect(Number(gsap.getProperty(track, 'x'))).toBe(0);
+
+    marquee.destroy();
+  });
+
+  it('should hold the track at 0 once the in-flight tween would have landed', async () => {
+    const media = installMatchMedia(false);
+    const { track, wrapper } = buildFixture();
+
+    const marquee = new Marquee(wrapper);
+    await marquee.ready;
+
+    // The freeze has to survive the tween the ticker leaves in flight, which
+    // has up to `dragEase` seconds still to run. Only the real ticker callback
+    // starts one, so drive a single frame of it by hand.
+    const [advanceFrame] = liveTickerCallbacks() as TickerCallback[];
+    advanceFrame(0, FRAME_DELTA_MS);
+
+    // Partway into the tween: proves it is genuinely mid-flight, so the
+    // assertions below cannot pass just because nothing was ever animating.
+    advanceGlobalTimeline(0.1);
+    expect(Number(gsap.getProperty(track, 'x'))).not.toBe(0);
+
+    await media.flip(true);
+    expect(Number(gsap.getProperty(track, 'x'))).toBe(0);
+
+    // Past `dragEase`. A surviving tween would have pulled the track back to
+    // its pre-freeze offset by now — the whole bug this guards against.
+    advanceGlobalTimeline(1);
+
+    expect(Number(gsap.getProperty(track, 'x'))).toBe(0);
+
+    marquee.destroy();
+  });
+
+  it('should still drive the track through moveTo after a freeze/unfreeze', async () => {
+    const media = installMatchMedia(false);
+    const { track, wrapper } = buildFixture();
+
+    const marquee = new Marquee(wrapper);
+    await marquee.ready;
+
+    await media.flip(true);
+    await media.flip(false);
+
+    // Motion resumes through the same quickTo the freeze had to stand down, so
+    // re-registering the ticker is not enough — the function itself has to still
+    // move the track. Killing the tween instead of pausing it passes every other
+    // assertion in this suite and fails here.
+    const [advanceFrame] = liveTickerCallbacks() as TickerCallback[];
+    advanceFrame(0, FRAME_DELTA_MS);
+    advanceGlobalTimeline(1);
+
+    expect(Number(gsap.getProperty(track, 'x'))).not.toBe(0);
 
     marquee.destroy();
   });
