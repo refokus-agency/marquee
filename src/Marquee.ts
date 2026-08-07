@@ -160,7 +160,7 @@ export class Marquee {
 
     this.originalSize = this.measurePeriod();
     this.wrap = gsap.utils.wrap(-this.originalSize, 0);
-    this.moveTo = this.createQuickTo();
+    this.installQuickTo();
 
     this.updateClones();
     // Owns starting motion (ticker + drag Observer) and, when the preference is
@@ -203,6 +203,25 @@ export class Marquee {
     const rect = this.element.getBoundingClientRect();
     const base = this.isVertical() ? rect.height : rect.width;
     return base + getTrackGap(this.track, this.isVertical());
+  }
+
+  /**
+   * Installs a fresh quickTo for the current axis, standing down the tween the
+   * previous one left in flight.
+   *
+   * A quickTo tween outlives its last call by up to `dragEase` seconds. Drop
+   * the reference without killing it and it keeps writing the axis off the
+   * books: {@link resetPosition} can only reach the tween behind the CURRENT
+   * `moveTo`, so an orphan wins over the `gsap.set` on every frame it has left.
+   *
+   * Killing is safe here — unlike the freeze, the function itself is discarded.
+   *
+   * @returns the installed function, so callers keep it non-null without a cast.
+   */
+  private installQuickTo(): gsap.QuickToFunc {
+    this.moveTo?.tween.kill();
+    this.moveTo = this.createQuickTo();
+    return this.moveTo;
   }
 
   private createQuickTo(): gsap.QuickToFunc {
@@ -447,7 +466,7 @@ export class Marquee {
     this.updateClones();
 
     this.wrap = gsap.utils.wrap(-this.originalSize, 0);
-    this.moveTo = this.createQuickTo();
+    const moveTo = this.installQuickTo();
 
     if (this.reducedMotion) {
       // `gsap.utils.wrap(-N, 0)(0)` returns -N because the max is exclusive, and
@@ -458,7 +477,7 @@ export class Marquee {
     }
 
     this.position = this.wrap(this.position);
-    this.moveTo(this.position);
+    moveTo(this.position);
   }
 
   public pause(): void {

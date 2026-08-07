@@ -583,6 +583,44 @@ describe('Marquee - Reduced Motion', () => {
     marquee.destroy();
   });
 
+  it('should hold the track at 0 when reduced motion follows a resize', async () => {
+    // The test above starts with the preference already active, so no ticker
+    // ever ran and no tween ever existed. Here one does — and the resize
+    // replaces the quickTo that owns it, putting the tween beyond the reach of
+    // the freeze unless the replacement retires it.
+    vi.useFakeTimers();
+    const media = installMatchMedia(false);
+    const { track, wrapper } = buildFixture();
+
+    const marquee = new Marquee(wrapper);
+    await marquee.ready;
+
+    const [advanceFrame] = liveTickerCallbacks() as TickerCallback[];
+    advanceFrame(0, FRAME_DELTA_MS);
+
+    window.dispatchEvent(new Event('resize'));
+    vi.advanceTimersByTime(200);
+
+    // media.flip() waits out GSAP's throttle on a real timer.
+    vi.useRealTimers();
+
+    // Partway into the orphaned tween, so the assertions below cannot pass just
+    // because nothing was ever animating.
+    advanceGlobalTimeline(0.1);
+    expect(Number(gsap.getProperty(track, 'x'))).not.toBe(0);
+
+    await media.flip(true);
+    expect(Number(gsap.getProperty(track, 'x'))).toBe(0);
+
+    // Past `dragEase`. A tween the resize orphaned is still writing the axis
+    // here, and wins over the freeze's gsap.set.
+    advanceGlobalTimeline(1);
+
+    expect(Number(gsap.getProperty(track, 'x'))).toBe(0);
+
+    marquee.destroy();
+  });
+
   it('should animate and read no overflow when respectReducedMotion is false', async () => {
     installMatchMedia(true);
     const { container, wrapper } = buildFixture();
