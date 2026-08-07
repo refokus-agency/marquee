@@ -1,5 +1,12 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { gsap } from 'gsap';
+import { Observer } from 'gsap/dist/Observer';
 import { Marquee } from '../Marquee.ts';
+import {
+  installMatchMedia,
+  installUnsupportedMatchMedia,
+  removeMatchMedia,
+} from './helpers/matchMedia.ts';
 
 /**
  * Note: Full integration tests with GSAP require a real browser environment.
@@ -130,5 +137,601 @@ describe('Marquee - DOM Structure Validation', () => {
     expect(() => new Marquee(wrapper)).toThrow(
       'Marquee track must have a parent element (container)',
     );
+  });
+});
+
+interface MarqueeFixture {
+  container: HTMLElement;
+  track: HTMLElement;
+  wrapper: HTMLElement;
+}
+
+const WRAPPER_SIZE = 100;
+const CONTAINER_SIZE = 300;
+
+/**
+ * jsdom reports every element as zero-sized, which makes measurePeriod() return
+ * 0 and updateClones() compute a NaN clone count — so no clones are ever
+ * created. Faking the two dimensions the marquee actually measures gives the
+ * clone and wrap logic a realistic layout to work against.
+ */
+function buildFixture(): MarqueeFixture {
+  document.body.innerHTML = `
+    <div class="container">
+      <div class="track">
+        <div class="wrapper" data-marquee>
+          <a href="#one" data-marquee-item>One</a>
+        </div>
+      </div>
+    </div>
+  `;
+
+  const container = document.querySelector<HTMLElement>('.container')!;
+  const track = document.querySelector<HTMLElement>('.track')!;
+  const wrapper = document.querySelector<HTMLElement>('.wrapper')!;
+
+  Object.defineProperty(container, 'clientWidth', {
+    value: CONTAINER_SIZE,
+    configurable: true,
+  });
+  Object.defineProperty(container, 'clientHeight', {
+    value: CONTAINER_SIZE,
+    configurable: true,
+  });
+  wrapper.getBoundingClientRect = () =>
+    ({ width: WRAPPER_SIZE, height: WRAPPER_SIZE }) as DOMRect;
+
+  return { container, track, wrapper };
+}
+
+describe('Marquee - Reduced Motion', () => {
+  let tickerLog: { type: 'add' | 'remove'; callback: unknown }[];
+
+  /**
+   * Whether the marquee is advancing is only observable through ticker
+   * registration — asserting real motion is not feasible without a browser.
+   * This is the one white-box seam in the suite.
+   *
+   * Replayed in order rather than diffed by call count, because
+   * `gsap.ticker.add()` de-dupes by calling `remove()` on its way in: a plain
+   * adds-minus-removes count nets every registration to zero.
+   */
+  function liveTickerCallbacks(): unknown[] {
+    const live = new Set<unknown>();
+
+    tickerLog.forEach(({ type, callback }) => {
+      if (type === 'add') live.add(callback);
+      else live.delete(callback);
+    });
+
+    return Array.from(live);
+  }
+
+  function observersOn(track: HTMLElement): Observer[] {
+    return Observer.getAll().filter((observer) => observer.target === track);
+  }
+
+  beforeEach(() => {
+    document.body.innerHTML = '';
+    tickerLog = [];
+
+    const originalAdd = gsap.ticker.add.bind(gsap.ticker);
+    const originalRemove = gsap.ticker.remove.bind(gsap.ticker);
+
+    // Logged after the call-through so add()'s internal de-dupe remove() is
+    // recorded first and cannot cancel the registration it precedes.
+    vi.spyOn(gsap.ticker, 'add').mockImplementation((callback, ...rest) => {
+      const result = originalAdd(callback, ...rest);
+      tickerLog.push({ type: 'add', callback });
+      return result;
+    });
+    vi.spyOn(gsap.ticker, 'remove').mockImplementation((callback, ...rest) => {
+      tickerLog.push({ type: 'remove', callback });
+      return originalRemove(callback, ...rest);
+    });
+  });
+
+  afterEach(() => {
+    document.body.innerHTML = '';
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  it('should not register the ticker when the preference is already active', async () => {
+    installMatchMedia(true);
+    const { wrapper } = buildFixture();
+
+    const marquee = new Marquee(wrapper);
+    await marquee.ready;
+
+    expect(liveTickerCallbacks()).toHaveLength(0);
+
+    marquee.destroy();
+  });
+
+  it('should register the ticker when the preference is not active', async () => {
+    installMatchMedia(false);
+    const { wrapper } = buildFixture();
+
+    const marquee = new Marquee(wrapper);
+    await marquee.ready;
+
+    expect(liveTickerCallbacks()).toHaveLength(1);
+    expect(marquee.isPaused()).toBe(false);
+
+    marquee.destroy();
+  });
+
+  it('should report isPaused() as true while reduced motion is active', async () => {
+    installMatchMedia(true);
+    const { wrapper } = buildFixture();
+
+    const marquee = new Marquee(wrapper);
+    await marquee.ready;
+
+    expect(marquee.isPaused()).toBe(true);
+
+    marquee.destroy();
+  });
+
+  it('should not begin advancing when resume() is called under reduced motion', async () => {
+    installMatchMedia(true);
+    const { wrapper } = buildFixture();
+
+    const marquee = new Marquee(wrapper);
+    await marquee.ready;
+
+    marquee.resume();
+
+    expect(liveTickerCallbacks()).toHaveLength(0);
+    expect(marquee.isPaused()).toBe(true);
+
+    marquee.destroy();
+  });
+
+  it('should reset the track transform to 0 when reduced motion becomes active', async () => {
+    const media = installMatchMedia(false);
+    const { track, wrapper } = buildFixture();
+
+    const marquee = new Marquee(wrapper);
+    await marquee.ready;
+
+    gsap.set(track, { x: -42 });
+    expect(Number(gsap.getProperty(track, 'x'))).toBe(-42);
+
+    await media.flip(true);
+
+    expect(Number(gsap.getProperty(track, 'x'))).toBe(0);
+
+    marquee.destroy();
+  });
+
+  it('should apply a scroll overflow on the horizontal axis for ltr/rtl', async () => {
+    installMatchMedia(true);
+    const { container, wrapper } = buildFixture();
+
+    const marquee = new Marquee(wrapper, { direction: 'rtl' });
+    await marquee.ready;
+
+    expect(container.style.overflowX).toBe('auto');
+    expect(container.style.overflowY).toBe('');
+
+    marquee.destroy();
+  });
+
+  it('should apply a scroll overflow on the vertical axis for ttb/btt', async () => {
+    installMatchMedia(true);
+    const { container, wrapper } = buildFixture();
+
+    const marquee = new Marquee(wrapper, { direction: 'ttb' });
+    await marquee.ready;
+
+    expect(container.style.overflowY).toBe('auto');
+    expect(container.style.overflowX).toBe('');
+
+    marquee.destroy();
+  });
+
+  it('should restore an overflow the integrator had already set inline', async () => {
+    const media = installMatchMedia(false);
+    const { container, wrapper } = buildFixture();
+    container.style.overflowX = 'clip';
+
+    const marquee = new Marquee(wrapper);
+    await marquee.ready;
+
+    await media.flip(true);
+    expect(container.style.overflowX).toBe('auto');
+
+    await media.flip(false);
+
+    expect(container.style.overflowX).toBe('clip');
+
+    marquee.destroy();
+  });
+
+  it('should clear the overflow declaration when none was set inline', async () => {
+    const media = installMatchMedia(true);
+    const { container, wrapper } = buildFixture();
+
+    const marquee = new Marquee(wrapper);
+    await marquee.ready;
+    expect(container.style.overflowX).toBe('auto');
+
+    await media.flip(false);
+
+    expect(container.style.overflowX).toBe('');
+
+    marquee.destroy();
+  });
+
+  it('should reset the scrollable axis offset when reduced motion becomes inactive', async () => {
+    const media = installMatchMedia(true);
+    const { container, wrapper } = buildFixture();
+
+    const marquee = new Marquee(wrapper);
+    await marquee.ready;
+
+    // The user scrolled the frozen marquee. overflow: hidden preserves that
+    // offset, so without a reset the marquee would animate from it.
+    container.scrollLeft = 500;
+    // The vertical axis was never made scrollable, so this offset is the page's
+    // (scrollIntoView, focus) — not ours to clear.
+    container.scrollTop = 300;
+
+    await media.flip(false);
+
+    expect(container.scrollLeft).toBe(0);
+    expect(container.scrollTop).toBe(300);
+
+    marquee.destroy();
+  });
+
+  it('should move the overflow to the new axis when setDirection() flips it', async () => {
+    installMatchMedia(true);
+    const { container, wrapper } = buildFixture();
+
+    const marquee = new Marquee(wrapper);
+    await marquee.ready;
+    expect(container.style.overflowX).toBe('auto');
+
+    marquee.setDirection('ttb');
+
+    expect(container.style.overflowX).toBe('');
+    expect(container.style.overflowY).toBe('auto');
+
+    marquee.destroy();
+  });
+
+  it('should reset the abandoned axis scroll offset when setDirection() flips it', async () => {
+    installMatchMedia(true);
+    const { container, wrapper } = buildFixture();
+
+    const marquee = new Marquee(wrapper);
+    await marquee.ready;
+
+    // The user scrolled the frozen marquee along the horizontal axis.
+    container.scrollLeft = 250;
+
+    marquee.setDirection('ttb');
+
+    // Restoring the horizontal overflow hands that axis back to the stylesheet's
+    // `overflow: hidden`, which PRESERVES the offset — so leaving it would strand
+    // the content 250px off-screen with no scrollbar left to bring it back.
+    expect(container.scrollLeft).toBe(0);
+    expect(container.style.overflowY).toBe('auto');
+
+    marquee.destroy();
+  });
+
+  it('should restore the container on destroy() while reduced motion is active', async () => {
+    installMatchMedia(true);
+    const { container, wrapper } = buildFixture();
+
+    const marquee = new Marquee(wrapper);
+    await marquee.ready;
+    container.scrollLeft = 500;
+    container.scrollTop = 300;
+
+    marquee.destroy();
+
+    expect(container.style.overflowX).toBe('');
+    expect(container.scrollLeft).toBe(0);
+    expect(container.scrollTop).toBe(300);
+    expect(liveTickerCallbacks()).toHaveLength(0);
+  });
+
+  it('should leave the container scroll untouched on destroy() when it never froze', async () => {
+    installMatchMedia(true);
+    const { container, wrapper } = buildFixture();
+
+    const marquee = new Marquee(wrapper, { respectReducedMotion: false });
+    await marquee.ready;
+
+    // Offsets the page put there. The library never made this container
+    // scrollable, so destroy() has no business zeroing them.
+    container.scrollLeft = 500;
+    container.scrollTop = 300;
+
+    marquee.destroy();
+
+    expect(container.scrollLeft).toBe(500);
+    expect(container.scrollTop).toBe(300);
+  });
+
+  it('should resume motion when reduced motion becomes inactive', async () => {
+    const media = installMatchMedia(true);
+    const { wrapper } = buildFixture();
+
+    const marquee = new Marquee(wrapper);
+    await marquee.ready;
+    expect(liveTickerCallbacks()).toHaveLength(0);
+
+    await media.flip(false);
+
+    expect(liveTickerCallbacks()).toHaveLength(1);
+    expect(marquee.isPaused()).toBe(false);
+
+    marquee.destroy();
+  });
+
+  it('should kill the drag Observer under reduced motion and re-create it on exit', async () => {
+    const media = installMatchMedia(false);
+    const { track, wrapper } = buildFixture();
+
+    const marquee = new Marquee(wrapper, { draggable: true });
+    await marquee.ready;
+    expect(observersOn(track)).toHaveLength(1);
+
+    await media.flip(true);
+    expect(observersOn(track)).toHaveLength(0);
+
+    await media.flip(false);
+
+    expect(observersOn(track)).toHaveLength(1);
+
+    marquee.destroy();
+  });
+
+  it('should keep the track transform at 0 when a resize fires under reduced motion', async () => {
+    // gsap.utils.wrap(-N, 0)(0) returns -N because the max is exclusive, so an
+    // unguarded re-wrap would silently displace a frozen marquee.
+    vi.useFakeTimers();
+    installMatchMedia(true);
+    const { track, wrapper } = buildFixture();
+
+    const marquee = new Marquee(wrapper);
+    await marquee.ready;
+
+    window.dispatchEvent(new Event('resize'));
+    vi.advanceTimersByTime(200);
+
+    expect(Number(gsap.getProperty(track, 'x'))).toBe(0);
+
+    marquee.destroy();
+  });
+
+  it('should animate and read no overflow when respectReducedMotion is false', async () => {
+    installMatchMedia(true);
+    const { container, wrapper } = buildFixture();
+
+    const marquee = new Marquee(wrapper, { respectReducedMotion: false });
+    await marquee.ready;
+
+    expect(liveTickerCallbacks()).toHaveLength(1);
+    expect(marquee.isPaused()).toBe(false);
+    expect(container.style.overflowX).toBe('');
+    expect(container.style.overflowY).toBe('');
+
+    marquee.destroy();
+  });
+
+  it('should animate without throwing when matchMedia is unavailable', async () => {
+    removeMatchMedia();
+    const { wrapper } = buildFixture();
+
+    const marquee = new Marquee(wrapper);
+    await expect(marquee.ready).resolves.toBeUndefined();
+
+    expect(liveTickerCallbacks()).toHaveLength(1);
+
+    marquee.destroy();
+  });
+
+  it('should animate when matchMedia exists but the feature is unsupported', async () => {
+    installUnsupportedMatchMedia();
+    const { container, wrapper } = buildFixture();
+
+    const marquee = new Marquee(wrapper);
+    await marquee.ready;
+
+    // Distinct from the missing-matchMedia case: the feature-detect guard passes,
+    // a real query is registered, and it simply never matches. Gating on `reduce`
+    // is what makes this safe — a `no-preference` gate would not match either,
+    // leaving the marquee permanently dead.
+    expect(liveTickerCallbacks()).toHaveLength(1);
+    expect(marquee.isPaused()).toBe(false);
+    expect(container.style.overflowX).toBe('');
+
+    marquee.destroy();
+  });
+
+  it('should freeze every instance independently when several share the page', async () => {
+    const media = installMatchMedia(false);
+    document.body.innerHTML = `
+      <div class="container-a"><div class="track"><div class="wrapper-a" data-marquee>
+        <a href="#a" data-marquee-item>A</a>
+      </div></div></div>
+      <div class="container-b"><div class="track"><div class="wrapper-b" data-marquee>
+        <a href="#b" data-marquee-item>B</a>
+      </div></div></div>
+    `;
+
+    const setUp = (suffix: string) => {
+      const container = document.querySelector<HTMLElement>(
+        `.container-${suffix}`,
+      )!;
+      const wrapper = document.querySelector<HTMLElement>(
+        `.wrapper-${suffix}`,
+      )!;
+      Object.defineProperty(container, 'clientWidth', {
+        value: CONTAINER_SIZE,
+        configurable: true,
+      });
+      Object.defineProperty(container, 'clientHeight', {
+        value: CONTAINER_SIZE,
+        configurable: true,
+      });
+      wrapper.getBoundingClientRect = () =>
+        ({ width: WRAPPER_SIZE, height: WRAPPER_SIZE }) as DOMRect;
+      return { container, wrapper };
+    };
+
+    const a = setUp('a');
+    const b = setUp('b');
+
+    const marqueeA = new Marquee(a.wrapper);
+    const marqueeB = new Marquee(b.wrapper, { direction: 'ttb' });
+    await Promise.all([marqueeA.ready, marqueeB.ready]);
+
+    expect(liveTickerCallbacks()).toHaveLength(2);
+
+    await media.flip(true);
+
+    // GSAP's `_media` registry is module-global, so a shared-state bug would
+    // show up as one instance freezing and the other not — or as one writing on
+    // the other's container. Each must freeze on its OWN axis.
+    expect(marqueeA.isPaused()).toBe(true);
+    expect(marqueeB.isPaused()).toBe(true);
+    expect(liveTickerCallbacks()).toHaveLength(0);
+    expect(a.container.style.overflowX).toBe('auto');
+    expect(a.container.style.overflowY).toBe('');
+    expect(b.container.style.overflowY).toBe('auto');
+    expect(b.container.style.overflowX).toBe('');
+
+    // Destroying one must not strand the other frozen.
+    marqueeA.destroy();
+    await media.flip(false);
+
+    expect(marqueeB.isPaused()).toBe(false);
+    expect(b.container.style.overflowY).toBe('');
+    expect(a.container.style.overflowX).toBe('');
+
+    marqueeB.destroy();
+  });
+
+  it('should keep pauseOnHover harmless while reduced motion holds it frozen', async () => {
+    const media = installMatchMedia(true);
+    const { container, wrapper } = buildFixture();
+
+    const marquee = new Marquee(wrapper, { pauseOnHover: true });
+    await marquee.ready;
+
+    // Hover fires pause()/resume() on a marquee the preference already froze.
+    // Neither may leak into the frozen state or survive the flip back.
+    container.dispatchEvent(new Event('mouseenter'));
+    expect(marquee.isPaused()).toBe(true);
+
+    container.dispatchEvent(new Event('mouseleave'));
+    expect(marquee.isPaused()).toBe(true);
+
+    await media.flip(false);
+
+    expect(marquee.isPaused()).toBe(false);
+    expect(liveTickerCallbacks()).toHaveLength(1);
+
+    // Proves the assertions above were not vacuous: the same listeners DO move
+    // isPaused() once the preference stops overriding them.
+    container.dispatchEvent(new Event('mouseenter'));
+    expect(marquee.isPaused()).toBe(true);
+    container.dispatchEvent(new Event('mouseleave'));
+    expect(marquee.isPaused()).toBe(false);
+
+    marquee.destroy();
+  });
+
+  it('should stop responding to preference changes after destroy()', async () => {
+    const media = installMatchMedia(false);
+    const { container, wrapper } = buildFixture();
+
+    const marquee = new Marquee(wrapper);
+    await marquee.ready;
+
+    marquee.destroy();
+
+    // destroy() kills the gsap.matchMedia() instance, which deregisters its
+    // context. A surviving context would still write on a container the marquee
+    // no longer owns.
+    await media.flip(true);
+
+    expect(container.style.overflowX).toBe('');
+    expect(liveTickerCallbacks()).toHaveLength(0);
+  });
+});
+
+describe('Marquee - Clone Accessibility', () => {
+  beforeEach(() => {
+    document.body.innerHTML = '';
+  });
+
+  afterEach(() => {
+    document.body.innerHTML = '';
+    vi.unstubAllGlobals();
+  });
+
+  it('should apply inert to every clone it creates', async () => {
+    const { track, wrapper } = buildFixture();
+
+    const marquee = new Marquee(wrapper);
+    await marquee.ready;
+
+    const clones = Array.from(
+      track.querySelectorAll<HTMLElement>('[data-marquee-clone]'),
+    );
+
+    expect(clones.length).toBeGreaterThan(0);
+    clones.forEach((clone) => {
+      expect(clone.hasAttribute('inert')).toBe(true);
+    });
+
+    marquee.destroy();
+  });
+
+  it('should not use aria-hidden on clones', async () => {
+    const { track, wrapper } = buildFixture();
+
+    const marquee = new Marquee(wrapper);
+    await marquee.ready;
+
+    const clones = Array.from(
+      track.querySelectorAll<HTMLElement>('[data-marquee-clone]'),
+    );
+
+    expect(clones.length).toBeGreaterThan(0);
+    clones.forEach((clone) => {
+      expect(clone.hasAttribute('aria-hidden')).toBe(false);
+    });
+
+    marquee.destroy();
+  });
+
+  it('should apply inert to clones regardless of the motion preference', async () => {
+    installMatchMedia(true);
+    const { track, wrapper } = buildFixture();
+
+    const marquee = new Marquee(wrapper, { respectReducedMotion: false });
+    await marquee.ready;
+
+    const clones = Array.from(
+      track.querySelectorAll<HTMLElement>('[data-marquee-clone]'),
+    );
+
+    expect(clones.length).toBeGreaterThan(0);
+    clones.forEach((clone) => {
+      expect(clone.hasAttribute('inert')).toBe(true);
+    });
+
+    marquee.destroy();
   });
 });

@@ -18,12 +18,14 @@ const DEFAULT_CONFIG: Required<MarqueeConfig> = {
   draggable: false,
   dragEase: 0.5,
   pauseOnHover: false,
+  respectReducedMotion: true,
   wrapperSelector: '[data-marquee]',
   itemSelector: '[data-marquee-item]',
   directionAttribute: 'data-marquee-direction',
   speedAttribute: 'data-marquee-speed',
   draggableAttribute: 'data-marquee-draggable',
   pauseOnHoverAttribute: 'data-marquee-pause-on-hover',
+  respectReducedMotionAttribute: 'data-marquee-respect-reduced-motion',
 };
 
 /**
@@ -46,6 +48,7 @@ export async function initMarquee(
     speedAttribute,
     draggableAttribute,
     pauseOnHoverAttribute,
+    respectReducedMotionAttribute,
     ...defaultOptions
   } = mergedConfig;
 
@@ -65,6 +68,9 @@ export async function initMarquee(
     const elementSpeed = wrapper.getAttribute(speedAttribute);
     const elementDraggable = wrapper.getAttribute(draggableAttribute);
     const elementPauseOnHover = wrapper.getAttribute(pauseOnHoverAttribute);
+    const elementRespectReducedMotion = wrapper.getAttribute(
+      respectReducedMotionAttribute,
+    );
 
     const options: MarqueeOptions = {
       ...defaultOptions,
@@ -78,6 +84,10 @@ export async function initMarquee(
         elementPauseOnHover !== null
           ? elementPauseOnHover !== 'false'
           : defaultOptions.pauseOnHover,
+      respectReducedMotion:
+        elementRespectReducedMotion !== null
+          ? elementRespectReducedMotion !== 'false'
+          : defaultOptions.respectReducedMotion,
     };
 
     const promise = Marquee.create(wrapper, options).catch((error) => {
