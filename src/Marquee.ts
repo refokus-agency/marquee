@@ -390,9 +390,20 @@ export class Marquee {
     this.savedOverflow = null;
   }
 
+  /**
+   * Zeroes the offset on the axis the library made scrollable — and only that
+   * one. A container the library never wrote to is left alone entirely: any
+   * offset it holds came from the page (`scrollIntoView()`, focus), not from us.
+   */
   private resetContainerScroll(): void {
+    if (!this.savedOverflow) return;
+
+    if (this.savedOverflow.property === 'overflowY') {
+      this.container.scrollTop = 0;
+      return;
+    }
+
     this.container.scrollLeft = 0;
-    this.container.scrollTop = 0;
   }
 
   private setupHoverPause(): void {
@@ -516,8 +527,10 @@ export class Marquee {
     this.reducedMotionMedia = null;
     this.reducedMotion = false;
 
-    // Belt and braces for the paths that never registered a context: both are
-    // no-ops once the cleanup above has already run.
+    // Belt and braces for a context that was registered but never reverted.
+    // Both are guarded on the recorded overflow, so they no-op once the cleanup
+    // above has run — and on the paths that never froze the container is left
+    // exactly as the integrator had it, never read and never written.
     this.resetContainerScroll();
     this.restoreContainerOverflow();
 

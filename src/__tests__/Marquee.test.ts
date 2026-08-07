@@ -366,7 +366,7 @@ describe('Marquee - Reduced Motion', () => {
     marquee.destroy();
   });
 
-  it('should reset both scroll offsets when reduced motion becomes inactive', async () => {
+  it('should reset the scrollable axis offset when reduced motion becomes inactive', async () => {
     const media = installMatchMedia(true);
     const { container, wrapper } = buildFixture();
 
@@ -376,12 +376,14 @@ describe('Marquee - Reduced Motion', () => {
     // The user scrolled the frozen marquee. overflow: hidden preserves that
     // offset, so without a reset the marquee would animate from it.
     container.scrollLeft = 500;
+    // The vertical axis was never made scrollable, so this offset is the page's
+    // (scrollIntoView, focus) — not ours to clear.
     container.scrollTop = 300;
 
     await media.flip(false);
 
     expect(container.scrollLeft).toBe(0);
-    expect(container.scrollTop).toBe(0);
+    expect(container.scrollTop).toBe(300);
 
     marquee.destroy();
   });
@@ -436,8 +438,26 @@ describe('Marquee - Reduced Motion', () => {
 
     expect(container.style.overflowX).toBe('');
     expect(container.scrollLeft).toBe(0);
-    expect(container.scrollTop).toBe(0);
+    expect(container.scrollTop).toBe(300);
     expect(liveTickerCallbacks()).toHaveLength(0);
+  });
+
+  it('should leave the container scroll untouched on destroy() when it never froze', async () => {
+    installMatchMedia(true);
+    const { container, wrapper } = buildFixture();
+
+    const marquee = new Marquee(wrapper, { respectReducedMotion: false });
+    await marquee.ready;
+
+    // Offsets the page put there. The library never made this container
+    // scrollable, so destroy() has no business zeroing them.
+    container.scrollLeft = 500;
+    container.scrollTop = 300;
+
+    marquee.destroy();
+
+    expect(container.scrollLeft).toBe(500);
+    expect(container.scrollTop).toBe(300);
   });
 
   it('should resume motion when reduced motion becomes inactive', async () => {

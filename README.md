@@ -339,7 +339,17 @@ so the one that guarantees reachability wins.
 
 This is the only style the library writes on an element you own. Whatever inline `overflow-x` /
 `overflow-y` the container already had is recorded and restored verbatim when the preference turns
-off or the instance is destroyed.
+off or the instance is destroyed. Nothing else on the container is read or written — including its
+scroll offsets, which are only ever reset on the axis the library itself made scrollable.
+
+On platforms with classic scrollbars (Windows), the scrollbar appearing can shift the layout around
+the marquee. Reserve the space if that matters to you:
+
+```css
+.marquee-container {
+  scrollbar-gutter: stable;
+}
+```
 
 The preference is watched live, not read once: flipping it at the OS level freezes or resumes an
 already-running marquee.
