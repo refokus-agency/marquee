@@ -179,6 +179,18 @@ export class Marquee {
     this.element.setAttribute('data-marquee-initialized', 'true');
 
     this.originalSize = this.measurePeriod();
+
+    // Warned once here rather than in updateClones(), which also runs on every
+    // resize. A marquee that measures 0 is a misconfiguration the integrator
+    // can act on — an empty wrapper, or children that contribute no layout.
+    if (!this.originalSize) {
+      console.warn(
+        'Marquee: wrapper measured 0, so nothing will animate. Check that it ' +
+          'has laid-out content.',
+        this.element,
+      );
+    }
+
     this.wrap = gsap.utils.wrap(-this.originalSize, 0);
     this.installQuickTo();
 
@@ -260,6 +272,14 @@ export class Marquee {
    * Calculates and manages clones to fill 2x container width for seamless looping
    */
   private updateClones(): void {
+    // A wrapper that measures 0 makes `clonesNeeded` Infinity when the
+    // container has a size, and the append loop below then runs until the tab
+    // dies. (With a zero-sized container it is NaN instead, and the loop simply
+    // never runs — which is why jsdom's all-zero default never surfaced this.)
+    // `!0` and `!NaN` are both true, so one condition covers both. A later
+    // resize re-measures and recovers.
+    if (!this.originalSize) return;
+
     const containerSize = this.isVertical()
       ? this.container.clientHeight
       : this.container.clientWidth;

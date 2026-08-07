@@ -815,6 +815,23 @@ describe('Marquee - Clone Accessibility', () => {
     vi.unstubAllGlobals();
   });
 
+  it('should not build clones when the wrapper measures 0', async () => {
+    // `Math.ceil((300 * 2) / 0)` is Infinity, so the append loop never
+    // terminates and takes the tab with it. jsdom's default hides this because
+    // BOTH dimensions are 0, which yields NaN and a loop that never runs — the
+    // container here keeps its faked size, which is the reachable half.
+    // Without the guard this test kills the worker rather than failing.
+    const { track, wrapper } = buildFixture();
+    wrapper.getBoundingClientRect = () => ({ width: 0, height: 0 }) as DOMRect;
+
+    const marquee = new Marquee(wrapper);
+    await marquee.ready;
+
+    expect(track.querySelectorAll('[data-marquee-clone]')).toHaveLength(0);
+
+    marquee.destroy();
+  });
+
   it('should apply aria-hidden to every clone it creates', async () => {
     const { track, wrapper } = buildFixture();
 
