@@ -586,6 +586,13 @@ export class Marquee {
     this.clones.forEach((clone) => clone.remove());
     this.clones = [];
 
+    // The tween the ticker's last frame started is still in flight with up to
+    // `dragEase` seconds to run, and would write the axis over the reset below.
+    // Killing rather than pausing is right here: unlike the freeze, nothing
+    // resumes motion through this `moveTo` afterwards.
+    this.moveTo?.tween.kill();
+    this.moveTo = null;
+
     gsap.set(this.track, this.isVertical() ? { y: 0 } : { x: 0 });
   }
 }

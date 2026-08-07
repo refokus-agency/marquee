@@ -583,6 +583,32 @@ describe('Marquee - Reduced Motion', () => {
     marquee.destroy();
   });
 
+  it('should leave the track at 0 after destroy()', async () => {
+    // destroy() ends with a gsap.set to 0, but stopMotion() only deregisters
+    // the ticker — the tween that ticker's last frame started is still in
+    // flight and writes the axis over the reset. README documents destroy() as
+    // resetting transforms, and an integrator that reuses the track after a
+    // route change inherits whatever offset the survivor lands on.
+    installMatchMedia(false);
+    const { track, wrapper } = buildFixture();
+
+    const marquee = new Marquee(wrapper);
+    await marquee.ready;
+
+    const [advanceFrame] = liveTickerCallbacks() as TickerCallback[];
+    advanceFrame(0, FRAME_DELTA_MS);
+
+    advanceGlobalTimeline(0.1);
+    expect(Number(gsap.getProperty(track, 'x'))).not.toBe(0);
+
+    marquee.destroy();
+    expect(Number(gsap.getProperty(track, 'x'))).toBe(0);
+
+    advanceGlobalTimeline(1);
+
+    expect(Number(gsap.getProperty(track, 'x'))).toBe(0);
+  });
+
   it('should hold the track at 0 when reduced motion follows a resize', async () => {
     // The test above starts with the preference already active, so no ticker
     // ever ran and no tween ever existed. Here one does — and the resize
