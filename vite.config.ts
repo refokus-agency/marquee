@@ -19,5 +19,11 @@ export default defineConfig(({ mode }) => ({
   test: {
     environment: 'jsdom',
     globals: true,
+    coverage: {
+      // Test scaffolding is not shipped code — measuring it only dilutes the
+      // number for src/. Vitest excludes `*.test.ts` on its own; the shared
+      // helpers under __tests__ need saying explicitly.
+      exclude: ['src/__tests__/**'],
+    },
   },
 }));

@@ -21,6 +21,9 @@ A GSAP-powered infinite marquee component for smooth, continuous scrolling anima
   - [Factory Function](#factory-function)
   - [Instance Control](#instance-control)
   - [Data Attributes](#data-attributes)
+- [Accessibility](#accessibility)
+  - [Reduced Motion](#reduced-motion)
+  - [Clones and the Accessibility Tree](#clones-and-the-accessibility-tree)
 - [Webflow Setup](#webflow-setup)
   - [If the page already loads GSAP](#if-the-page-already-loads-gsap)
 - [API Reference](#api-reference)
@@ -46,6 +49,7 @@ A GSAP-powered infinite marquee component for smooth, continuous scrolling anima
 - Adjustable scroll speed
 - Optional drag/touch interaction
 - Pause on hover option
+- Honors `prefers-reduced-motion` — freezes and becomes scrollable instead
 - Dynamic cloning based on container size (auto add/remove on resize)
 - Full TypeScript support
 - Programmatic control (pause, resume, destroy)
@@ -309,6 +313,117 @@ Configure each marquee instance directly in HTML — no JS config needed when us
 | `data-marquee-speed` | any number, e.g. `2` | `1` |
 | `data-marquee-draggable` | `true` \| `false` | `false` |
 | `data-marquee-pause-on-hover` | `true` \| `false` | `false` |
+| `data-marquee-respect-reduced-motion` | `true` \| `false` | `true` |
+
+---
+
+## Accessibility
+
+### Reduced Motion
+
+By default the marquee honors the operating system's reduced-motion setting. While
+`(prefers-reduced-motion: reduce)` matches, the marquee:
+
+- stops advancing and resets to its start position
+- sets `overflow-x: auto` on the **container** (or `overflow-y` for `ttb` / `btt`) so the content
+  stays reachable by native scrolling
+- kills the drag interaction, if `draggable` was enabled
+- reports `isPaused() === true`, and ignores `resume()` — the preference outranks it, so nothing
+  moves until the preference itself changes
+
+The scroll affordance matters: a frozen marquee that still clips its overflow would hide every item
+past the container edge with no way to reach them. Native scrolling replaces the animation as the
+mechanism for getting to that content — which is also why drag is dropped rather than kept. Drag
+and native scroll compete for the same gesture on the same axis, and on touch they fight outright,
+so the one that guarantees reachability wins.
+
+This is the only style the library writes on an element you own. Whatever inline `overflow-x` /
+`overflow-y` the container already had is recorded and restored verbatim when the preference turns
+off or the instance is destroyed. Nothing else on the container is read or written — including its
+scroll offsets, which are only ever reset on the axis the library itself made scrollable.
+
+On platforms with classic scrollbars (Windows), the scrollbar appearing can shift the layout around
+the marquee. Reserve the space if that matters to you:
+
+```css
+.marquee-container {
+  scrollbar-gutter: stable;
+}
+```
+
+The preference is watched live, not read once: flipping it at the OS level freezes or resumes an
+already-running marquee.
+
+To animate regardless of the preference, opt out:
+
+```typescript
+// Per instance
+const marquee = await createMarquee('#my-marquee', { respectReducedMotion: false });
+
+// Or for every marquee on the page
+await initMarquee({ respectReducedMotion: false });
+```
+
+```html
+<!-- Or per element, with initMarquee() -->
+<div data-marquee data-marquee-respect-reduced-motion="false">…</div>
+```
+
+> `respectReducedMotion: false` opts out of **honoring** the preference, not out of detecting it.
+> Setting it to `false` means "animate anyway", so use it only where motion is essential to what
+> the content communicates.
+
+Browsers that cannot report the preference at all animate normally, as does any environment without
+`window.matchMedia`.
+
+#### Known limitations
+
+The live watching runs on `gsap.matchMedia()`, which brings two GSAP behaviors with it. Neither is
+specific to this library — they affect every `gsap.matchMedia()` consumer — but both are worth
+knowing about.
+
+**Two preference changes less than 2ms apart: the second is dropped.** GSAP coalesces media-change
+events into one pass every 2ms, shared across every `gsap.matchMedia()` user on the page. That coalescing is what keeps
+one preference change from being processed once per registered query, but it cannot tell duplicate
+events apart from two genuinely different values. When the second value is dropped, GSAP's record of
+the preference does not advance either, so the marquee can stay out of sync with the real setting
+until the next media change anywhere on the page resynchronizes it.
+
+In practice this is a testing concern, not a user-facing one: the first change after page load is
+always applied, and nobody can toggle an OS setting twice within 2ms. What *can* is an automated
+suite driving the preference through something like Playwright's `emulateMediaFeatures()`. **If you
+assert reduced-motion behavior in tests, leave more than 2ms between flips** — otherwise a pass or a
+failure may be measuring the dropped event rather than the marquee.
+
+**The native media-query listener outlives `destroy()`.** `destroy()` releases the
+`gsap.matchMedia()` context, but GSAP never calls `removeListener` on the underlying
+`MediaQueryList`, and exposes no API to do it. The destroyed instance is still garbage-collectible —
+GSAP's handler is a module-level function holding no per-instance state — but the native listener
+count grows across mount/unmount cycles in SPA-style usage.
+
+### Clones and the Accessibility Tree
+
+The marquee fills the track by cloning its wrapper. Every clone gets `aria-hidden="true"`, and every
+focusable element inside it gets `tabindex="-1"` — otherwise a screen reader would announce each item
+several times over, and every cloned link would become a duplicate tab stop.
+
+Both go on every clone the marquee creates, independent of `respectReducedMotion` and of the motion
+preference. **Anything focusable inside a marquee is reachable by keyboard and by assistive
+technology exactly once**, in the original wrapper. Clones stay fully clickable, so a reader can
+activate whichever copy of a link happens to be under the pointer.
+
+That last part is why `inert` is not used, despite covering both exclusions in a single attribute.
+`inert` also blocks hit-testing, and the track only ever translates by one period — so the original
+wrapper occupies at most its own width of the container, and most of what the reader sees at any
+moment is a clone. Under `inert` the majority of a marquee's links would silently stop responding to
+clicks, which reads as a broken site rather than a library limitation. `aria-hidden` and `tabindex`
+also work in every browser, where `inert` needs Chrome 102+, Safari 15.5+ or Firefox 112+ to do
+anything at all.
+
+The tradeoff this leaves: a pointer can still move focus into an `aria-hidden` subtree, so an
+accessibility audit will flag `aria-hidden-focus` as needs-review rather than passing clean. Mouse
+users who click a cloned link navigate immediately, and keyboard and screen-reader users never reach
+one, so the flag is expected here.
 
 ---
 
@@ -404,6 +519,9 @@ correctly, but it runs on an instance your own code cannot see: shared state suc
 timeline, `gsap.matchMedia()` contexts, or plugins you registered on the page's core does not
 carry across.
 
+[Reduced motion](#reduced-motion) is unaffected by this: marquee's own `gsap.matchMedia()` context
+only runs callbacks — it never creates tweens — so it works on whichever core the package imported.
+
 To run marquee on the GSAP you already have, load the browser bundle directly and map the `gsap`
 specifiers onto the existing global. An import map can only point a specifier at a URL, so the
 global is re-exported through a tiny inline shim module:
@@ -454,6 +572,7 @@ separate shim files instead of inline `data:` URLs.
 | `draggable` | `boolean` | `false` | Enable drag/touch interaction |
 | `pauseOnHover` | `boolean` | `false` | Pause animation on hover |
 | `dragEase` | `number` | `0.5` | Drag easing duration in seconds |
+| `respectReducedMotion` | `boolean` | `true` | Honor `prefers-reduced-motion` — see [Reduced Motion](#reduced-motion) |
 
 ### `MarqueeConfig` (extends `MarqueeOptions`)
 
@@ -467,18 +586,19 @@ Additional options for `initMarquee()`:
 | `speedAttribute` | `string` | `'data-marquee-speed'` | Attribute name for speed |
 | `draggableAttribute` | `string` | `'data-marquee-draggable'` | Attribute name for draggable |
 | `pauseOnHoverAttribute` | `string` | `'data-marquee-pause-on-hover'` | Attribute name for pauseOnHover |
+| `respectReducedMotionAttribute` | `string` | `'data-marquee-respect-reduced-motion'` | Attribute name for respectReducedMotion |
 
 ### `Marquee` Instance Methods
 
 | Method | Return | Description |
 |--------|--------|-------------|
 | `pause()` | `void` | Pause the animation |
-| `resume()` | `void` | Resume the animation |
-| `isPaused()` | `boolean` | Check if paused |
+| `resume()` | `void` | Resume the animation — no effect while reduced motion is active, see [Reduced Motion](#reduced-motion) |
+| `isPaused()` | `boolean` | Check if paused — also `true` while reduced motion is active |
 | `isReady()` | `boolean` | True after images loaded and init complete |
 | `setSpeed(speed)` | `void` | Update scroll speed |
 | `getSpeed()` | `number` | Get current speed |
-| `setDirection(dir)` | `void` | Update scroll direction (same axis only) |
+| `setDirection(dir)` | `void` | Update scroll direction — **same axis only** (`ltr` ↔ `rtl`, `ttb` ↔ `btt`). Crossing axes is not supported |
 | `getDirection()` | `MarqueeDirection` | Get current direction |
 | `isDestroyed()` | `boolean` | Check if destroyed |
 | `destroy()` | `void` | Clean up clones, listeners, and transforms |

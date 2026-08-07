@@ -363,7 +363,7 @@
 
     <div class="c-marquee-container">
       <div class="c-marquee-track">
-        <div data-marquee class="c-marquee-wrapper">
+        <div data-marquee id="marquee-1" class="c-marquee-wrapper">
           <div data-marquee-item class="c-marquee-item">
             <img src="https://cdn.prod.website-files.com/67dd6fe7bd7e331b5970b9f4/67ec0bf2cd17b013740392ef_logo-32.avif" loading="lazy" alt="" class="c-marquee-logo">
           </div>
@@ -618,7 +618,7 @@
       <button class="control-btn secondary" id="toggle-direction">Toggle Direction</button>
       <span class="status">
         <span class="status-dot" id="status-dot"></span>
-        <span id="status-text">Playing</span>
+        <span id="status-text">Initializing…</span>
       </span>
     </div>
 
@@ -627,6 +627,70 @@
       <input type="range" id="speed-slider" min="0.5" max="5" step="0.5" value="1">
       <span class="speed-value" id="speed-value">1x</span>
     </div>
+  </section>
+
+  <!-- ─── 10. Reduced Motion ────────────────────────────────────────────── -->
+  <section class="section">
+    <h2 class="section-title">10. Reduced Motion (<code>prefers-reduced-motion</code>)</h2>
+    <p class="section-description">
+      By default the marquee honors the OS reduced-motion setting: it freezes at its start position
+      and the <strong>container</strong> gets an inline <code>overflow-x: auto</code> so the content
+      stays reachable by native scrolling. Opt out per instance with
+      <code>data-marquee-respect-reduced-motion="false"</code>.
+    </p>
+    <p class="section-description">
+      The setting lives in the OS and no page API can change it, so the button below installs a
+      <strong>demo-only shim</strong> over <code>window.matchMedia</code> to fake the preference —
+      the library itself never does this. Because the preference is global, toggling it freezes
+      <strong>every marquee on this page</strong>, which is exactly what the real setting does.
+      Scroll the first row while it is frozen, then toggle back off: the offset is reset so the
+      animation never resumes from a displaced origin.
+    </p>
+
+    <div class="controls">
+      <button class="control-btn primary" id="rm-toggle">Simulate reduce: OFF</button>
+      <span class="status">
+        <span class="status-dot" id="rm-dot"></span>
+        <span id="rm-status">Initializing…</span>
+      </span>
+      <span class="status" id="rm-os">OS preference: reading…</span>
+    </div>
+
+    <p class="section-description" style="margin-top: 1.5rem;">
+      <strong>Honors the preference</strong> — default, no attribute needed:
+    </p>
+    <div class="c-text-marquee-container">
+      <div class="c-text-marquee-track">
+        <div data-marquee id="rm-honoring" data-marquee-speed="0.5" class="c-text-marquee-wrapper">
+          <div data-marquee-item class="c-text-marquee-item">Freezes <span>&amp;</span> Scrolls</div>
+          <div data-marquee-item class="c-text-marquee-item">Reachable <span>&amp;</span> Still</div>
+          <div data-marquee-item class="c-text-marquee-item">Accessible <span>&amp;</span> Calm</div>
+        </div>
+      </div>
+    </div>
+
+    <p class="section-description" style="margin-top: 1.5rem;">
+      <strong>Opted out</strong> — <code>data-marquee-respect-reduced-motion="false"</code>, keeps
+      animating regardless. Use this only where the motion carries meaning:
+    </p>
+    <div class="c-text-marquee-container">
+      <div class="c-text-marquee-track">
+        <div data-marquee id="rm-optout" data-marquee-respect-reduced-motion="false"
+             data-marquee-direction="rtl" data-marquee-speed="0.5" class="c-text-marquee-wrapper">
+          <div data-marquee-item class="c-text-marquee-item">Motion <span>&amp;</span> Meaning</div>
+          <div data-marquee-item class="c-text-marquee-item">Opted <span>&amp;</span> Out</div>
+          <div data-marquee-item class="c-text-marquee-item">Always <span>&amp;</span> Moving</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="clone-count" id="rm-inline-style">Container inline style: reading…</div>
+    <p class="hover-hint">
+      Every clone the marquee creates carries <code>aria-hidden="true"</code>, and its focusable
+      children carry <code>tabindex="-1"</code> — so the cloned copies of these items are absent from
+      the accessibility tree and the tab order, while staying clickable. Only the original is
+      focusable.
+    </p>
   </section>
 
   <!-- Load GSAP from the installed peer dependency (UMD globals) — keeps this example offline -->
@@ -646,32 +710,137 @@
   <script type="module">
     import { initMarquee } from '../../../dist/index.js';
 
-    async function init() {
-      // initMarquee reads all data attributes automatically.
-      // Sections 5 (pauseOnHover) and 6 (draggable) are handled via their data attributes.
-      const marquees = await initMarquee();
-      console.log('Marquee instances initialized:', marquees.length);
+    const REDUCE_FEATURE = 'prefers-reduced-motion: reduce';
+    const NO_PREFERENCE_FEATURE = 'prefers-reduced-motion: no-preference';
 
-      // Update clone count for the first marquee
-      const firstMarquee = marquees[0];
-      if (firstMarquee) {
-        const updateCloneCount = () => {
-          const el = document.getElementById('clone-count-1');
-          const clones = firstMarquee.element.parentElement
-            ?.querySelectorAll('[data-marquee-clone]').length || 0;
-          if (el) el.textContent = `Clones: ${clones} (${clones + 1} total wrappers)`;
+    /**
+     * DEMO SCAFFOLDING — the library never does this.
+     *
+     * `prefers-reduced-motion` is an OS setting and no page API can change it, so
+     * the freeze/unfreeze path would otherwise be undemonstrable. This proxies
+     * `window.matchMedia` and answers ONLY reduced-motion queries from a local
+     * flag, seeded with the real preference so the page still tells the truth on
+     * load. Every other query delegates to the browser untouched.
+     *
+     * Must run before initMarquee(): each instance registers its
+     * gsap.matchMedia() context during initialization.
+     */
+    function installReducedMotionSwitch() {
+      const nativeMatchMedia = window.matchMedia.bind(window);
+      const osPrefersReduce = nativeMatchMedia(`(${REDUCE_FEATURE})`).matches;
+      let simulatedReduce = osPrefersReduce;
+
+      // GSAP re-creates a MediaQueryList on every change to re-read `matches`,
+      // but only ever registers its listener on the first one — so the registry
+      // has to live out here rather than on the individual lists.
+      const listeners = new Set();
+
+      // Substring match, so a compound query such as
+      // `(min-width: 600px) and (prefers-reduced-motion: reduce)` would be
+      // answered from the flag alone and its other condition silently dropped.
+      // Nothing on this page writes one; a general-purpose shim would have to
+      // parse the query instead.
+      const isReducedMotionQuery = (query) =>
+        query.includes(REDUCE_FEATURE) || query.includes(NO_PREFERENCE_FEATURE);
+
+      window.matchMedia = (query) => {
+        if (!isReducedMotionQuery(query)) return nativeMatchMedia(query);
+
+        const add = (fn) => listeners.add(fn);
+        const remove = (fn) => listeners.delete(fn);
+
+        return {
+          media: query,
+          matches: query.includes(REDUCE_FEATURE)
+            ? simulatedReduce
+            : !simulatedReduce,
+          onchange: null,
+          // GSAP prefers the legacy addListener when it is present, so both
+          // registration APIs feed the same registry.
+          addListener: add,
+          removeListener: remove,
+          addEventListener: (_type, fn) => add(fn),
+          removeEventListener: (_type, fn) => remove(fn),
+          dispatchEvent: () => true,
         };
-        updateCloneCount();
-        window.addEventListener('resize', () => setTimeout(updateCloneCount, 200));
-      }
+      };
 
-      return marquees;
+      return {
+        osPrefersReduce,
+        isReducing: () => simulatedReduce,
+        setReduce(next) {
+          if (next === simulatedReduce) return;
+          simulatedReduce = next;
+          // Every listener receives the `reduce` framing, including those
+          // registered through the `no-preference` query — for which `matches`
+          // is inverted. The registry does not record which query each listener
+          // came from, so the payload cannot be tailored. Harmless for GSAP,
+          // which ignores the event args and re-reads through matchMedia (see
+          // above), but a reuser of this shim would have to track it.
+          listeners.forEach((fn) =>
+            fn({ matches: next, media: `(${REDUCE_FEATURE})` }),
+          );
+        },
+      };
     }
 
-    const marquees = await init();
+    const reducedMotion = installReducedMotionSwitch();
 
-    // Programmatic control (section 9)
-    const controlled = marquees.find(m => m.element.id === 'controlled-marquee');
+    /*
+     * One initMarquee() call per panel that reads an instance, rather than a
+     * single page-wide call.
+     *
+     * A marquee's `ready` waits for its container to enter the viewport (the
+     * library lazy-initializes below-fold marquees), and initMarquee() resolves
+     * only once EVERY marquee it matched is ready. A single page-wide call
+     * therefore hands back its instances only after the reader has scrolled to
+     * the very bottom of the page — which would leave the controls of a marquee
+     * already on screen inert, and the section 1 clone count stuck on
+     * "calculating…", until then.
+     *
+     * The selectors are disjoint, so no element is initialized twice, and
+     * initMarquee() still reads every data attribute exactly as before.
+     */
+    const FIRST = '#marquee-1';
+    const CONTROLLED = '#controlled-marquee';
+    const HONORING = '#rm-honoring';
+    const REST =
+      `[data-marquee]:not(${FIRST}):not(${CONTROLLED}):not(${HONORING})`;
+
+    const initOne = (selector) =>
+      initMarquee({ wrapperSelector: selector }).then(([instance]) => instance);
+
+    // Sections 5 (pauseOnHover) and 6 (draggable) are handled via their data
+    // attributes — nothing here needs their instances.
+    initMarquee({ wrapperSelector: REST }).then((instances) => {
+      console.log('Marquee instances initialized (unattended):', instances.length);
+    });
+
+    /* ─── Section 1: clone count ─────────────────────────────────────────── */
+
+    initOne(FIRST).then((first) => {
+      if (!first) return;
+      const el = document.getElementById('clone-count-1');
+      const updateCloneCount = () => {
+        const clones = first.element.parentElement
+          ?.querySelectorAll('[data-marquee-clone]').length || 0;
+        if (el) el.textContent = `Clones: ${clones} (${clones + 1} total wrappers)`;
+      };
+      updateCloneCount();
+      window.addEventListener('resize', () => setTimeout(updateCloneCount, 200));
+    });
+
+    /* ─── Sections 9 + 10: instances arrive later ────────────────────────── */
+
+    // Both panels wire their listeners up front and read these bindings at
+    // event time, so nothing interactive sits behind an unresolved promise.
+    // `settled` separates "the instance has not arrived yet" from "it failed to
+    // initialize", so neither panel reports on an instance that does not exist.
+    let controlled;
+    let honoring;
+    let honoringContainer;
+    let controlledSettled = false;
+    let honoringSettled = false;
 
     const pauseBtn = document.getElementById('pause-btn');
     const resumeBtn = document.getElementById('resume-btn');
@@ -682,9 +851,22 @@
     const statusText = document.getElementById('status-text');
 
     function updateStatus() {
-      if (controlled?.isPaused()) {
+      if (!controlled) {
+        statusDot.classList.remove('paused');
+        statusText.textContent = controlledSettled
+          ? 'Not initialized — no instance to report on'
+          : 'Waiting for this marquee to enter the viewport…';
+        return;
+      }
+
+      if (controlled.isPaused()) {
         statusDot.classList.add('paused');
-        statusText.textContent = 'Paused';
+        // isPaused() covers both causes, so name the one in effect: under reduced
+        // motion Resume flips the internal flag but nothing moves, and a bare
+        // "Paused" would make that look like a broken button.
+        statusText.textContent = reducedMotion.isReducing()
+          ? 'Frozen — reduced motion (see section 10)'
+          : 'Paused';
       } else {
         statusDot.classList.remove('paused');
         statusText.textContent = 'Playing';
@@ -706,6 +888,74 @@
       controlled?.setSpeed(speed);
       speedValue.textContent = `${speed}x`;
     });
+
+    initOne(CONTROLLED).then((instance) => {
+      controlled = instance;
+      controlledSettled = true;
+      updateStatus();
+    });
+
+    /* ─── Section 10: reduced motion ─────────────────────────────────────── */
+
+    const rmToggle = document.getElementById('rm-toggle');
+    const rmDot = document.getElementById('rm-dot');
+    const rmStatus = document.getElementById('rm-status');
+    const rmInlineStyle = document.getElementById('rm-inline-style');
+
+    document.getElementById('rm-os').textContent =
+      `OS preference: ${reducedMotion.osPrefersReduce ? 'reduce' : 'no-preference'}`;
+
+    function updateReducedMotionStatus() {
+      const reducing = reducedMotion.isReducing();
+
+      rmToggle.textContent = `Simulate reduce: ${reducing ? 'ON' : 'OFF'}`;
+      rmToggle.setAttribute('aria-pressed', String(reducing));
+
+      if (!honoring) {
+        const pending = 'Waiting for this marquee to enter the viewport…';
+        rmDot.classList.remove('paused');
+        rmStatus.textContent = honoringSettled
+          ? 'Not initialized — no instance to report on'
+          : pending;
+        rmInlineStyle.textContent = honoringSettled
+          ? 'Container inline style: unknown — no instance to report on'
+          : `Container inline style: ${pending}`;
+        updateStatus();
+        return;
+      }
+
+      const frozen = honoring.isPaused();
+      rmDot.classList.toggle('paused', frozen);
+      rmStatus.textContent = frozen
+        ? 'Frozen — isPaused() === true'
+        : 'Playing — isPaused() === false';
+
+      // The library's only write on an element the integrator owns. Empty means
+      // it restored the declaration and the stylesheet's `overflow: hidden` is
+      // back in charge.
+      const inline = honoringContainer?.style.overflowX;
+      rmInlineStyle.textContent = inline
+        ? `Container inline style: overflow-x: ${inline} — native scrolling available`
+        : 'Container inline style: none — clipped by the stylesheet, as normal';
+
+      // Section 9's panel shares the preference: resume() cannot start a marquee
+      // the preference has frozen, so say that rather than claim "Playing".
+      updateStatus();
+    }
+
+    rmToggle.addEventListener('click', () => {
+      reducedMotion.setReduce(!reducedMotion.isReducing());
+      updateReducedMotionStatus();
+    });
+
+    initOne(HONORING).then((instance) => {
+      honoring = instance;
+      honoringContainer = instance?.element.parentElement?.parentElement;
+      honoringSettled = true;
+      updateReducedMotionStatus();
+    });
+
+    updateReducedMotionStatus();
   </script>
 </body>
 </html>
