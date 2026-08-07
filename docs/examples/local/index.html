@@ -363,7 +363,7 @@
 
     <div class="c-marquee-container">
       <div class="c-marquee-track">
-        <div data-marquee class="c-marquee-wrapper">
+        <div data-marquee id="marquee-1" class="c-marquee-wrapper">
           <div data-marquee-item class="c-marquee-item">
             <img src="https://cdn.prod.website-files.com/67dd6fe7bd7e331b5970b9f4/67ec0bf2cd17b013740392ef_logo-32.avif" loading="lazy" alt="" class="c-marquee-logo">
           </div>
@@ -618,7 +618,7 @@
       <button class="control-btn secondary" id="toggle-direction">Toggle Direction</button>
       <span class="status">
         <span class="status-dot" id="status-dot"></span>
-        <span id="status-text">Playing</span>
+        <span id="status-text">Initializing…</span>
       </span>
     </div>
 
@@ -651,7 +651,7 @@
       <button class="control-btn primary" id="rm-toggle">Simulate reduce: OFF</button>
       <span class="status">
         <span class="status-dot" id="rm-dot"></span>
-        <span id="rm-status">Playing</span>
+        <span id="rm-status">Initializing…</span>
       </span>
       <span class="status" id="rm-os">OS preference: reading…</span>
     </div>
@@ -734,6 +734,11 @@
       // has to live out here rather than on the individual lists.
       const listeners = new Set();
 
+      // Substring match, so a compound query such as
+      // `(min-width: 600px) and (prefers-reduced-motion: reduce)` would be
+      // answered from the flag alone and its other condition silently dropped.
+      // Nothing on this page writes one; a general-purpose shim would have to
+      // parse the query instead.
       const isReducedMotionQuery = (query) =>
         query.includes(REDUCE_FEATURE) || query.includes(NO_PREFERENCE_FEATURE);
 
@@ -765,6 +770,12 @@
         setReduce(next) {
           if (next === simulatedReduce) return;
           simulatedReduce = next;
+          // Every listener receives the `reduce` framing, including those
+          // registered through the `no-preference` query — for which `matches`
+          // is inverted. The registry does not record which query each listener
+          // came from, so the payload cannot be tailored. Harmless for GSAP,
+          // which ignores the event args and re-reads through matchMedia (see
+          // above), but a reuser of this shim would have to track it.
           listeners.forEach((fn) =>
             fn({ matches: next, media: `(${REDUCE_FEATURE})` }),
           );
@@ -774,32 +785,61 @@
 
     const reducedMotion = installReducedMotionSwitch();
 
-    async function init() {
-      // initMarquee reads all data attributes automatically.
-      // Sections 5 (pauseOnHover) and 6 (draggable) are handled via their data attributes.
-      const marquees = await initMarquee();
-      console.log('Marquee instances initialized:', marquees.length);
+    /*
+     * One initMarquee() call per panel that reads an instance, rather than a
+     * single page-wide call.
+     *
+     * A marquee's `ready` waits for its container to enter the viewport (the
+     * library lazy-initializes below-fold marquees), and initMarquee() resolves
+     * only once EVERY marquee it matched is ready. A single page-wide call
+     * therefore hands back its instances only after the reader has scrolled to
+     * the very bottom of the page — which would leave the controls of a marquee
+     * already on screen inert, and the section 1 clone count stuck on
+     * "calculating…", until then.
+     *
+     * The selectors are disjoint, so no element is initialized twice, and
+     * initMarquee() still reads every data attribute exactly as before.
+     */
+    const FIRST = '#marquee-1';
+    const CONTROLLED = '#controlled-marquee';
+    const HONORING = '#rm-honoring';
+    const REST =
+      `[data-marquee]:not(${FIRST}):not(${CONTROLLED}):not(${HONORING})`;
 
-      // Update clone count for the first marquee
-      const firstMarquee = marquees[0];
-      if (firstMarquee) {
-        const updateCloneCount = () => {
-          const el = document.getElementById('clone-count-1');
-          const clones = firstMarquee.element.parentElement
-            ?.querySelectorAll('[data-marquee-clone]').length || 0;
-          if (el) el.textContent = `Clones: ${clones} (${clones + 1} total wrappers)`;
-        };
-        updateCloneCount();
-        window.addEventListener('resize', () => setTimeout(updateCloneCount, 200));
-      }
+    const initOne = (selector) =>
+      initMarquee({ wrapperSelector: selector }).then(([instance]) => instance);
 
-      return marquees;
-    }
+    // Sections 5 (pauseOnHover) and 6 (draggable) are handled via their data
+    // attributes — nothing here needs their instances.
+    initMarquee({ wrapperSelector: REST }).then((instances) => {
+      console.log('Marquee instances initialized (unattended):', instances.length);
+    });
 
-    const marquees = await init();
+    /* ─── Section 1: clone count ─────────────────────────────────────────── */
 
-    // Programmatic control (section 9)
-    const controlled = marquees.find(m => m.element.id === 'controlled-marquee');
+    initOne(FIRST).then((first) => {
+      if (!first) return;
+      const el = document.getElementById('clone-count-1');
+      const updateCloneCount = () => {
+        const clones = first.element.parentElement
+          ?.querySelectorAll('[data-marquee-clone]').length || 0;
+        if (el) el.textContent = `Clones: ${clones} (${clones + 1} total wrappers)`;
+      };
+      updateCloneCount();
+      window.addEventListener('resize', () => setTimeout(updateCloneCount, 200));
+    });
+
+    /* ─── Sections 9 + 10: instances arrive later ────────────────────────── */
+
+    // Both panels wire their listeners up front and read these bindings at
+    // event time, so nothing interactive sits behind an unresolved promise.
+    // `settled` separates "the instance has not arrived yet" from "it failed to
+    // initialize", so neither panel reports on an instance that does not exist.
+    let controlled;
+    let honoring;
+    let honoringContainer;
+    let controlledSettled = false;
+    let honoringSettled = false;
 
     const pauseBtn = document.getElementById('pause-btn');
     const resumeBtn = document.getElementById('resume-btn');
@@ -810,7 +850,15 @@
     const statusText = document.getElementById('status-text');
 
     function updateStatus() {
-      if (controlled?.isPaused()) {
+      if (!controlled) {
+        statusDot.classList.remove('paused');
+        statusText.textContent = controlledSettled
+          ? 'Not initialized — no instance to report on'
+          : 'Waiting for this marquee to enter the viewport…';
+        return;
+      }
+
+      if (controlled.isPaused()) {
         statusDot.classList.add('paused');
         // isPaused() covers both causes, so name the one in effect: under reduced
         // motion Resume flips the internal flag but nothing moves, and a bare
@@ -840,10 +888,13 @@
       speedValue.textContent = `${speed}x`;
     });
 
-    /* ─── Section 10: reduced motion ─────────────────────────────────────── */
+    initOne(CONTROLLED).then((instance) => {
+      controlled = instance;
+      controlledSettled = true;
+      updateStatus();
+    });
 
-    const honoring = marquees.find(m => m.element.id === 'rm-honoring');
-    const honoringContainer = honoring?.element.parentElement?.parentElement;
+    /* ─── Section 10: reduced motion ─────────────────────────────────────── */
 
     const rmToggle = document.getElementById('rm-toggle');
     const rmDot = document.getElementById('rm-dot');
@@ -858,8 +909,23 @@
 
       rmToggle.textContent = `Simulate reduce: ${reducing ? 'ON' : 'OFF'}`;
       rmToggle.setAttribute('aria-pressed', String(reducing));
-      rmDot.classList.toggle('paused', Boolean(honoring?.isPaused()));
-      rmStatus.textContent = honoring?.isPaused()
+
+      if (!honoring) {
+        const pending = 'Waiting for this marquee to enter the viewport…';
+        rmDot.classList.remove('paused');
+        rmStatus.textContent = honoringSettled
+          ? 'Not initialized — no instance to report on'
+          : pending;
+        rmInlineStyle.textContent = honoringSettled
+          ? 'Container inline style: unknown — no instance to report on'
+          : `Container inline style: ${pending}`;
+        updateStatus();
+        return;
+      }
+
+      const frozen = honoring.isPaused();
+      rmDot.classList.toggle('paused', frozen);
+      rmStatus.textContent = frozen
         ? 'Frozen — isPaused() === true'
         : 'Playing — isPaused() === false';
 
@@ -878,6 +944,13 @@
 
     rmToggle.addEventListener('click', () => {
       reducedMotion.setReduce(!reducedMotion.isReducing());
+      updateReducedMotionStatus();
+    });
+
+    initOne(HONORING).then((instance) => {
+      honoring = instance;
+      honoringContainer = instance?.element.parentElement?.parentElement;
+      honoringSettled = true;
       updateReducedMotionStatus();
     });
 
