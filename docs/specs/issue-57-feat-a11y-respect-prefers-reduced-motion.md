@@ -19,12 +19,12 @@ Discovery: 15 branches opened, 14 decisions recorded. Full reasoning trail in
 | # | Action | Path | Purpose |
 |---|--------|------|---------|
 | 1 | modify | `src/types.ts` | Add `respectReducedMotion` to `MarqueeOptions` and `respectReducedMotionAttribute` to `MarqueeConfig` |
-| 2 | modify | `src/Marquee.ts` | Media-query gate, reduced-motion enter/exit, overflow save+restore, position reset, drag gating, `inert` on clones, `isPaused`, resize guard, destroy teardown |
+| 2 | modify | `src/Marquee.ts` | Media-query gate, reduced-motion enter/exit, overflow save+restore, position reset, drag gating, `markDecorative()` on clones, `isPaused`, resize guard, destroy teardown |
 | 3 | modify | `src/index.ts` | `DEFAULT_CONFIG` entry, attribute default, attribute reading, option pass-through |
 | 4 | create | `src/__tests__/helpers/matchMedia.ts` | Controllable `matchMedia` stub (new convention: first helpers file in this repo) |
 | 5 | modify | `src/__tests__/Marquee.test.ts` | Behavior tests |
 | 6 | modify | `src/__tests__/index.test.ts` | Option + attribute plumbing tests |
-| 7 | modify | `README.md` | Options tables (449-470), new reduced-motion section, note the scroll + `inert` behavior |
+| 7 | modify | `README.md` | Options tables (449-470), new reduced-motion section, note the scroll + clone-a11y behavior |
 
 ## Codebase Context
 
@@ -37,8 +37,8 @@ Discovery: 15 branches opened, 14 decisions recorded. Full reasoning trail in
   `elementPauseOnHover` pattern at `index.ts:62-80`.
 - `isVertical()` already exists (`Marquee.ts:171,176,351`) — reuse it for axis selection rather
   than re-deriving from `direction`.
-- Reuse `updateClones()` (`Marquee.ts:190-212`) as the single clone-creation site, so `inert`
-  automatically covers resize-driven clone growth.
+- Reuse `updateClones()` (`Marquee.ts:190-212`) as the single clone-creation site, so the clone
+  a11y treatment automatically covers resize-driven clone growth.
 - `initialize()` order (`Marquee.ts:104-140`): `updateClones()` at 133 runs **before**
   `setupAnimation()` at 134 — clones already exist when the ticker is registered.
 - Today's `pause()` does **not** deregister the ticker (`Marquee.ts:274-284`); the callback runs
@@ -85,10 +85,12 @@ Discovery: 15 branches opened, 14 decisions recorded. Full reasoning trail in
    **Done when:** after a reduce→no-reduce flip the container's inline overflow byte-matches its
    pre-flip value and both scroll offsets are 0.
 
-7. Apply `inert` to every clone at creation; guard `handleResize` so `position` stays 0 while
-   reduced motion is active → `src/Marquee.ts:190-212,261-272`
-   **Done when:** every `[data-marquee-clone]` carries `inert`, and a resize fired while reduced
-   motion is active leaves the track transform at 0.
+7. Apply `aria-hidden="true"` plus `tabindex="-1"` on focusables to every clone at creation; guard
+   `handleResize` so `position` stays 0 while reduced motion is active
+   → `src/Marquee.ts:190-212,261-272`
+   **Done when:** every `[data-marquee-clone]` carries `aria-hidden="true"` and no `inert`, its
+   focusables carry `tabindex="-1"`, and a resize fired while reduced motion is active leaves the
+   track transform at 0.
 
 8. Make `isPaused()` report `true` under reduced motion; extend `destroy()` to restore the
    overflow, reset scroll, and kill the matchMedia instance → `src/Marquee.ts:282-284,313-352`
@@ -97,10 +99,10 @@ Discovery: 15 branches opened, 14 decisions recorded. Full reasoning trail in
    are 0.
 
 9. Document: options tables, a reduced-motion section explaining the scroll affordance and the
-   always-on `inert`, and that `respectReducedMotion` is an opt-**out** of honoring the
-   preference (not the detection) → `README.md`
+   always-on clone a11y treatment, and that `respectReducedMotion` is an opt-**out** of honoring
+   the preference (not the detection) → `README.md`
    **Done when:** both new fields appear in the tables with correct defaults and the section
-   states the scroll + `inert` behavior.
+   states the scroll + clone-a11y behavior.
 
 ## Interfaces
 
@@ -153,7 +155,7 @@ the callback independently of building it.
 - **AC-8.** When reduced motion becomes inactive, the marquee shall reset the container's `scrollLeft` and `scrollTop` to 0 before resuming motion.
 - **AC-9.** When reduced motion becomes active and `draggable` is `true`, the marquee shall kill the drag Observer.
 - **AC-10.** When reduced motion becomes inactive and `draggable` is `true`, the marquee shall re-create the drag Observer.
-- **AC-11.** The marquee shall apply `inert` to every clone it creates, regardless of `respectReducedMotion` and regardless of the motion preference.
+- **AC-11.** The marquee shall apply `aria-hidden="true"` to every clone it creates, and `tabindex="-1"` to every focusable element in it, regardless of `respectReducedMotion` and regardless of the motion preference.
 - **AC-12.** If `resume()` is called while reduced motion is active, then the marquee shall not begin advancing.
 - **AC-13.** `isPaused()` shall return `true` while reduced motion is active.
 - **AC-14.** If a resize occurs while reduced motion is active, then `position` shall remain 0.
@@ -162,7 +164,7 @@ the callback independently of building it.
 - **AC-17.** If the browser does not support the `prefers-reduced-motion` feature, then the marquee shall animate.
 - **AC-18.** When `destroy()` is called while reduced motion is active, the marquee shall restore the container's overflow, reset its scroll offsets, and kill the `gsap.matchMedia()` instance.
 - **AC-19.** When `setDirection()` changes the axis while reduced motion is active, the marquee shall restore the previous axis's overflow and apply the new axis's.
-- **AC-20.** The marquee shall not use `aria-hidden` on clones; `inert` alone provides accessibility-tree exclusion.
+- **AC-20.** The marquee shall not use `inert` on clones; clones shall remain operable by pointer.
 
 ## Out of Scope
 
@@ -195,7 +197,7 @@ the callback independently of building it.
 | 9 | Browser does not support the `prefers-reduced-motion` feature | [inferred] | Gate on `reduce` only with animate-by-default. The issue's `no-preference` snippet would leave these browsers frozen forever — see Deviation below. |
 | 10 | `resume()` while reduced motion active | [from issue] | `paused = false`, but the ticker is not registered, so nothing moves. |
 | 11 | `isPaused()` while reduced motion active | [from issue] | Returns `true`. |
-| 12 | Clones added by a later resize | [inferred] | `inert` applied at the single creation site in `updateClones()`, so growth is covered. |
+| 12 | Clones added by a later resize | [inferred] | `markDecorative()` applied at the single creation site in `updateClones()`, so growth is covered. |
 | 13 | `pauseOnHover` with reduced motion active | [inferred] | Hover flips `paused`; harmless no-op. A stale `paused: true` surviving a flip-back keeps it frozen — consistent with an explicit pause. |
 | 14 | Two GSAP cores (`docs/examples/local` import-map + shims) | [inferred] | `gsap.matchMedia()` is used only for callbacks, never tweens, so it works on whichever core the package imported. `README.md:405` caveat noted in docs. |
 | 15 | Reduced motion already active at construction | [inferred] | `mm.add` runs its body synchronously, so ticker/Observer are created then torn down within the same tick. Accepted micro-churn in exchange for a structure that is safe on unsupporting browsers. |
@@ -216,9 +218,13 @@ reduce)`.** Same intent, safe fallback. Carry this reasoning into a code comment
   user-initiated mechanisms on the same axis and the same element, and on touch they fight
   directly. Scroll won because it is the mechanism that guarantees reachability. Decided, not an
   oversight.
-- The issue proposed `aria-hidden` on clones. **Superseded by `inert`**, which excludes from the
-  accessibility tree *and* the tab order. `aria-hidden` alone would have left cloned links as ghost
-  focus stops.
+- The issue proposed `aria-hidden` on clones. First superseded by `inert`, which excludes from the
+  accessibility tree *and* the tab order in one attribute — `aria-hidden` alone would have left
+  cloned links as ghost focus stops. **Reverted during review of PR #80**: `inert` also blocks
+  hit-testing, and since the track translates by only one period, most visible items are clones — so
+  `inert` left the majority of a marquee's links dead to the click. Settled on the issue's
+  `aria-hidden` **plus `tabindex="-1"`** on focusable descendants, which closes the ghost-focus-stop
+  gap that motivated `inert` in the first place, and works in every browser rather than Chrome 102+.
 
 ## Done Criteria per Feature
 
@@ -236,13 +242,14 @@ reduce)`.** Same intent, safe fallback. Carry this reasoning into a code comment
 
 | Risk | Mitigation |
 |------|------------|
-| `inert` on clones is **ungated** — lands for every integrator with no opt-out, and breaks anyone relying on cloned links being focusable/clickable | Call out in README + release notes as an observable behavior change. It was a deliberate decision, not a side effect. |
+| Clone a11y treatment is **ungated** — lands for every integrator with no opt-out, and removes cloned links from the tab order | Call out in README. Against v1.4.1, which shipped no clone treatment at all, everything removed is a defect (duplicate announcements, duplicate tab stops), so it is a `fix` and not a breaking change. Clones stay clickable, which is what would have made it one. |
+| A pointer can move focus into an `aria-hidden` subtree, so axe reports `aria-hidden-focus` as needs-review | Accepted and documented in the README. Mouse users who click a cloned link navigate immediately; keyboard and AT users never reach one. |
 | The library writes inline styles on an element it does not own | Save/restore verbatim; add an explicit test for the pre-existing-inline-value case (edge case 3). |
 | Deviation from the issue's `no-preference` snippet | Documented in this plan, surfaced at the approval gate, and to be repeated in a code comment. |
 | Two GSAP cores in shim/CDN setups | Note in the `README.md:400-443` section. |
 | jsdom has no `matchMedia` and GSAP is not mocked | Shared controllable stub helper; the feature-detect guard (AC-16) means unstubbed tests pass rather than crash. |
 | `src/__tests__/helpers/` is a new convention for this repo | Single small file, flagged here rather than introduced silently. |
-| Semver: the new option is a minor, but `inert`-on-clones is a behavior change | Flag for release notes. |
+| Semver: the new option is a minor; the clone treatment is a behavior change against v1.4.1 | Everything it removes is a defect, so it ships as `fix` with no `BREAKING CHANGE:` footer. The change overall cuts a minor on the strength of the new option. |
 | **Two search-engine summaries were factually wrong during discovery**, both contradicted by their own primary sources (one about hiding duplicates under reduced motion, one about `inert` and the accessibility tree) | Do not trust search synthesis while implementing — fetch the primary source. Both corrections are recorded in the session artifact. |
 
 Runtime-generated files: `.cothinker/` is **already** in `.gitignore` (verified) — no change
@@ -261,7 +268,7 @@ this change and cannot be covered by an init-only stub. Installed via `vi.stubGl
 
 **Black-box through the public API** — `new Marquee` / `initMarquee`, `setDirection`,
 `pause`/`resume`, `destroy` — not private methods. Assertions on observable state: container inline
-`style.overflowX`/`overflowY`, `scrollLeft`/`scrollTop`, clone `inert` attribute presence,
+`style.overflowX`/`overflowY`, `scrollLeft`/`scrollTop`, clone `aria-hidden`/`tabindex` presence,
 `isPaused()`, and the track transform via `gsap.getProperty`.
 
 `gsap.ticker.add`/`remove` are spied because asserting real motion is not feasible in jsdom. That

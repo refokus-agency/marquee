@@ -686,8 +686,9 @@
 
     <div class="clone-count" id="rm-inline-style">Container inline style: reading…</div>
     <p class="hover-hint">
-      Every clone the marquee creates also carries <code>inert</code>, so the cloned copies of these
-      items are absent from the accessibility tree and the tab order — only the original is
+      Every clone the marquee creates carries <code>aria-hidden="true"</code>, and its focusable
+      children carry <code>tabindex="-1"</code> — so the cloned copies of these items are absent from
+      the accessibility tree and the tab order, while staying clickable. Only the original is
       focusable.
     </p>
   </section>

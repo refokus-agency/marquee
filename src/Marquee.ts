@@ -48,6 +48,26 @@ const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)';
 const REDUCED_MOTION_OVERFLOW = 'auto';
 
 /**
+ * What would become a tab stop inside a clone. `[tabindex]` catches anything
+ * the integrator made focusable by hand, including the wrapper itself.
+ */
+const FOCUSABLE_SELECTOR = [
+  'a[href]',
+  'area[href]',
+  'audio[controls]',
+  'button',
+  'details',
+  'iframe',
+  'input',
+  'select',
+  'summary',
+  'textarea',
+  'video[controls]',
+  '[contenteditable]',
+  '[tabindex]',
+].join(',');
+
+/**
  * The container overflow declaration the library replaced while reduced motion is
  * active, captured so it can be put back verbatim.
  */
@@ -253,7 +273,7 @@ export class Marquee {
       const clone = this.element.cloneNode(true) as HTMLElement;
       clone.setAttribute('data-marquee-clone', 'true');
       clone.removeAttribute('id');
-      this.markInert(clone);
+      this.markDecorative(clone);
       this.track.appendChild(clone);
       this.clones.push(clone);
     }
@@ -265,13 +285,37 @@ export class Marquee {
   }
 
   /**
-   * Excludes a clone from the accessibility tree AND the tab order. Clones
-   * duplicate whatever the wrapper holds, so without this every cloned link or
-   * button becomes a repeated announcement and a ghost tab stop. `inert` covers
-   * both; `aria-hidden` would only have covered the former.
+   * Excludes a clone from the accessibility tree AND the tab order, while
+   * leaving it operable by pointer.
+   *
+   * Clones duplicate whatever the wrapper holds, so without this every cloned
+   * link becomes a repeated announcement and a ghost tab stop. `inert` covers
+   * both in one attribute — and was the first choice here — but it also blocks
+   * hit-testing. The track only ever translates by one period, so the original
+   * wrapper contributes at most `originalSize` pixels of a `containerSize`-wide
+   * window and most of what the reader sees at any moment is a clone. `inert`
+   * therefore leaves the majority of a marquee's links dead to the click, which
+   * reads as a broken site rather than a library limitation.
+   *
+   * `aria-hidden` plus `tabindex="-1"` draws the line where we want it, and
+   * unlike `inert` it needs no modern-browser support to apply at all.
+   *
+   * The residual: a pointer can still move focus into an `aria-hidden` subtree,
+   * so axe reports `aria-hidden-focus` as needs-review rather than a clean
+   * pass. Narrow next to silently breaking every visible link.
    */
-  private markInert(element: HTMLElement): void {
-    element.setAttribute('inert', '');
+  private markDecorative(clone: HTMLElement): void {
+    clone.setAttribute('aria-hidden', 'true');
+
+    // querySelectorAll only reaches descendants, so a wrapper the integrator
+    // made focusable has to be handled on its own.
+    if (clone.matches(FOCUSABLE_SELECTOR)) {
+      clone.setAttribute('tabindex', '-1');
+    }
+
+    clone
+      .querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)
+      .forEach((node) => node.setAttribute('tabindex', '-1'));
   }
 
   /** Builds the per-frame advance function. Registration is {@link startMotion}'s job. */

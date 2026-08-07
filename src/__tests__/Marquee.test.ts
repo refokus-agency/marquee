@@ -815,7 +815,7 @@ describe('Marquee - Clone Accessibility', () => {
     vi.unstubAllGlobals();
   });
 
-  it('should apply inert to every clone it creates', async () => {
+  it('should apply aria-hidden to every clone it creates', async () => {
     const { track, wrapper } = buildFixture();
 
     const marquee = new Marquee(wrapper);
@@ -827,13 +827,54 @@ describe('Marquee - Clone Accessibility', () => {
 
     expect(clones.length).toBeGreaterThan(0);
     clones.forEach((clone) => {
-      expect(clone.hasAttribute('inert')).toBe(true);
+      expect(clone.getAttribute('aria-hidden')).toBe('true');
     });
 
     marquee.destroy();
   });
 
-  it('should not use aria-hidden on clones', async () => {
+  it('should take focusable descendants of a clone out of the tab order', async () => {
+    const { track, wrapper } = buildFixture();
+
+    const marquee = new Marquee(wrapper);
+    await marquee.ready;
+
+    const clonedLinks = Array.from(
+      track.querySelectorAll<HTMLElement>('[data-marquee-clone] a[href]'),
+    );
+
+    // aria-hidden alone would leave these tabbable — a focusable element with
+    // no accessible name, which is worse than the duplicate it replaces.
+    expect(clonedLinks.length).toBeGreaterThan(0);
+    clonedLinks.forEach((link) => {
+      expect(link.getAttribute('tabindex')).toBe('-1');
+    });
+
+    marquee.destroy();
+  });
+
+  it('should take a clone that is itself focusable out of the tab order', async () => {
+    const { track, wrapper } = buildFixture();
+    wrapper.setAttribute('tabindex', '0');
+
+    const marquee = new Marquee(wrapper);
+    await marquee.ready;
+
+    const clones = Array.from(
+      track.querySelectorAll<HTMLElement>('[data-marquee-clone]'),
+    );
+
+    // querySelectorAll only reaches descendants, so a wrapper the integrator
+    // made focusable needs the root handled on its own.
+    expect(clones.length).toBeGreaterThan(0);
+    clones.forEach((clone) => {
+      expect(clone.getAttribute('tabindex')).toBe('-1');
+    });
+
+    marquee.destroy();
+  });
+
+  it('should not use inert, so clones stay operable by pointer', async () => {
     const { track, wrapper } = buildFixture();
 
     const marquee = new Marquee(wrapper);
@@ -843,15 +884,18 @@ describe('Marquee - Clone Accessibility', () => {
       track.querySelectorAll<HTMLElement>('[data-marquee-clone]'),
     );
 
+    // inert blocks hit-testing too. The track only translates by one period, so
+    // most of what the reader sees at any moment is a clone — inert would leave
+    // the majority of a marquee's links dead to the click.
     expect(clones.length).toBeGreaterThan(0);
     clones.forEach((clone) => {
-      expect(clone.hasAttribute('aria-hidden')).toBe(false);
+      expect(clone.hasAttribute('inert')).toBe(false);
     });
 
     marquee.destroy();
   });
 
-  it('should apply inert to clones regardless of the motion preference', async () => {
+  it('should hide clones regardless of the motion preference', async () => {
     installMatchMedia(true);
     const { track, wrapper } = buildFixture();
 
@@ -864,7 +908,7 @@ describe('Marquee - Clone Accessibility', () => {
 
     expect(clones.length).toBeGreaterThan(0);
     clones.forEach((clone) => {
-      expect(clone.hasAttribute('inert')).toBe(true);
+      expect(clone.getAttribute('aria-hidden')).toBe('true');
     });
 
     marquee.destroy();

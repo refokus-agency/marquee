@@ -403,22 +403,27 @@ count grows across mount/unmount cycles in SPA-style usage.
 
 ### Clones and the Accessibility Tree
 
-The marquee fills the track by cloning its wrapper. Every clone it creates gets the `inert`
-attribute, which removes it from both the accessibility tree and the tab order — otherwise a screen
-reader would announce each item several times over, and every cloned link would become a tab stop
-that goes nowhere.
+The marquee fills the track by cloning its wrapper. Every clone gets `aria-hidden="true"`, and every
+focusable element inside it gets `tabindex="-1"` — otherwise a screen reader would announce each item
+several times over, and every cloned link would become a duplicate tab stop.
 
-The attribute goes on every clone the marquee creates, independent of `respectReducedMotion` and of
-the motion preference. Only the original wrapper
-stays interactive, so **anything focusable or clickable inside a marquee is reachable exactly
-once**, in the original. If your integration relied on cloned links being clickable, that no longer
-works.
+Both go on every clone the marquee creates, independent of `respectReducedMotion` and of the motion
+preference. **Anything focusable inside a marquee is reachable by keyboard and by assistive
+technology exactly once**, in the original wrapper. Clones stay fully clickable, so a reader can
+activate whichever copy of a link happens to be under the pointer.
 
-The exclusion itself depends on browser support for `inert` — Chrome 102+, Safari 15.5+, Firefox
-112+. On anything older the attribute is inert itself: clones stay focusable and get announced. There
-is no fallback, deliberately. `aria-hidden` would have hidden them from screen readers while leaving
-them in the tab order, which trades one defect for a worse one — a focusable element with no
-accessible name.
+That last part is why `inert` is not used, despite covering both exclusions in a single attribute.
+`inert` also blocks hit-testing, and the track only ever translates by one period — so the original
+wrapper occupies at most its own width of the container, and most of what the reader sees at any
+moment is a clone. Under `inert` the majority of a marquee's links would silently stop responding to
+clicks, which reads as a broken site rather than a library limitation. `aria-hidden` and `tabindex`
+also work in every browser, where `inert` needs Chrome 102+, Safari 15.5+ or Firefox 112+ to do
+anything at all.
+
+The tradeoff this leaves: a pointer can still move focus into an `aria-hidden` subtree, so an
+accessibility audit will flag `aria-hidden-focus` as needs-review rather than passing clean. Mouse
+users who click a cloned link navigate immediately, and keyboard and screen-reader users never reach
+one, so the flag is expected here.
 
 ---
 
