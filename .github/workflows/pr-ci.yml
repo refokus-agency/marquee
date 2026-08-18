@@ -13,10 +13,10 @@
 #   3. Lint, Typecheck, Test and Build — each step runs only if package.json declares a
 #      script with that exact name, and is silently skipped otherwise.
 #
-# Gotcha worth remembering: the script probe looks for `typecheck`, never `check-types`.
-# package.json therefore defines both — `check-types` is what `prepublishOnly` invokes,
-# and `typecheck` is the name this CI can discover. Removing the `typecheck` alias does
-# not turn the check red; it makes CI report green while never type checking at all.
+# Gotcha worth remembering: the script probe matches the exact name `typecheck`, and
+# skips silently when it is missing. Renaming that script does not turn the check red;
+# it makes CI report green while never type checking at all. `typecheck` is the org-wide
+# canonical name (see refokus-agency/platform#62) — do not rename or alias it.
 #
 # Permissions are the minimum the reusable workflow needs:
 #   - contents: read  — to check out this repository.

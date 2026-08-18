@@ -630,7 +630,7 @@ pnpm build:clean       # Clean dist and rebuild
 pnpm build:watch       # Vite watch mode (no validation)
 pnpm build:watch:types # TypeScript watch mode
 pnpm test              # Run tests
-pnpm check-types       # TypeScript type check
+pnpm typecheck         # TypeScript type check
 pnpm lint              # Lint with Biome (--write)
 pnpm format            # Format with Biome (--write)
 pnpm validate:package  # Entry-point rules + publint + attw (runs as part of build)
@@ -652,7 +652,7 @@ number is derived from the commit history.
 Published versions are available on npm as
 [`@refokus-agency/marquee`](https://www.npmjs.com/package/@refokus-agency/marquee).
 
-`prepublishOnly` runs `check-types`, `lint` and `build:clean` before npm accepts the tarball, so
+`prepublishOnly` runs `typecheck`, `lint` and `build:clean` before npm accepts the tarball, so
 `validate:package` executes a second time at publish — once in CI and once against the exact
 artifact being uploaded. The repeated work is deliberate: it is the last gate before a broken
 entry-point map becomes a published version.
