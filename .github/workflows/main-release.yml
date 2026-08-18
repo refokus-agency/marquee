@@ -14,8 +14,14 @@
 # `id-token: write` is REQUIRED here — it is what lets npm mint the OIDC
 # credential. Without it the publish fails.
 #
-# `provenance` stays off (the reusable default) while this repository is private;
-# flip it on once the repository is public if signed provenance is wanted.
+# `provenance: true` makes GitHub sign an attestation binding the published tarball
+# to the workflow, commit and repository that produced it. The signature comes from
+# GitHub's infrastructure, not from the publisher, so a stolen credential cannot forge
+# it. Consumers verify with `npm audit signatures`. This composes with the OIDC Trusted
+# Publishing above: OIDC removes the static credential worth stealing, provenance lets
+# the consumer verify the result.
+#
+# Provenance requires a public repository, which this one has been since 2026-07-28.
 #
 # workflow_dispatch is kept as an escape hatch — it allows re-running a release
 # from the Actions tab without pushing a new commit.
@@ -50,4 +56,5 @@ jobs:
     uses: refokus-agency/platform/.github/workflows/release.yml@v1.8.1
     with:
       registry: npm
+      provenance: true
     secrets: inherit
