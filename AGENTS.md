@@ -77,7 +77,7 @@ The marquee requires a **3-level structure**:
 | `pnpm test`         | Run all tests (Vitest)      |
 | `pnpm lint`         | Biome lint with auto-fix    |
 | `pnpm format`       | Format code with Biome      |
-| `pnpm check-types`  | TypeScript type checking    |
+| `pnpm typecheck`    | TypeScript type checking    |
 | `pnpm commit`       | Conventional commit wizard  |
 
 ### Running a Single Test

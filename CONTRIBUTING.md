@@ -46,8 +46,7 @@ pnpm install           # install dependencies
 pnpm test              # run the test suite once (Vitest)
 pnpm test:watch        # run tests in watch mode
 pnpm test:coverage     # run tests with a coverage report
-pnpm check-types       # TypeScript type check, no emit
-pnpm typecheck         # identical to check-types — the name CI probes for
+pnpm typecheck         # TypeScript type check, no emit — the name CI probes for
 pnpm lint              # Biome lint, WRITES fixes to ./src
 pnpm lint:report       # Biome lint, read-only — use this to verify
 pnpm format            # Biome format, writes to ./src
