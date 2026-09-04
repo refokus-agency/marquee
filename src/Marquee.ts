@@ -664,6 +664,9 @@ export class Marquee {
    * and wrapper. Those live in the integrator's stylesheet, the library never
    * writes them, and a class swap fires no event this instance can observe. So
    * crossing axes is a `destroy()` and a fresh instance, not a setter.
+   *
+   * Before {@link ready} resolves the axis is not bound to anything yet, so a
+   * cross-axis change there is honored rather than refused — see the guard.
    */
   public setDirection(direction: MarqueeDirection): void {
     // NOT defaulted to 'ltr' the way construction does. A live vertical marquee
@@ -680,7 +683,18 @@ export class Marquee {
       return;
     }
 
-    if (isVerticalDirection(direction) !== this.isVertical()) {
+    // Gated on `initialized`, which is a precise proxy for "an axis is bound":
+    // everything from the last `await` in initialize() through the flag runs
+    // synchronously, so no caller can land in between. Before that flag,
+    // `initialize()` has yet to measure and nothing derives from the direction
+    // — a pre-`ready` change is simply read when the measuring happens, which
+    // is how `new Marquee(el); if (mobile) m.setDirection('ttb');` produced a
+    // genuinely vertical marquee before this guard existed. Refusing there
+    // would break a working path and leave the marquee horizontal against the
+    // column layout the caller had already switched to.
+    const crossesAxis = isVerticalDirection(direction) !== this.isVertical();
+
+    if (this.initialized && crossesAxis) {
       console.warn(
         `Marquee: setDirection('${direction}') crosses axes from ` +
           `'${this.direction}' and was ignored. Horizontal and vertical ` +

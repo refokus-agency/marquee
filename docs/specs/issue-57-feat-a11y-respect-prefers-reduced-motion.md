@@ -163,7 +163,7 @@ the callback independently of building it.
 - **AC-16.** If `window.matchMedia` is unavailable, then the marquee shall animate normally and shall not throw.
 - **AC-17.** If the browser does not support the `prefers-reduced-motion` feature, then the marquee shall animate.
 - **AC-18.** When `destroy()` is called while reduced motion is active, the marquee shall restore the container's overflow, reset its scroll offsets, and kill the `gsap.matchMedia()` instance.
-- **AC-19.** When `setDirection()` changes the axis while reduced motion is active, the marquee shall restore the previous axis's overflow and apply the new axis's.
+- **AC-19.** ~~When `setDirection()` changes the axis while reduced motion is active, the marquee shall restore the previous axis's overflow and apply the new axis's.~~ **Superseded by #69.** A cross-axis `setDirection()` on an initialized instance is now refused outright, so the axis cannot change while reduced motion is active and the reconciliation this AC describes became unreachable. The overflow now stays on the axis that is still animating, which is the correct outcome for a refused call.
 - **AC-20.** The marquee shall not use `inert` on clones; clones shall remain operable by pointer.
 
 ## Out of Scope
@@ -192,7 +192,7 @@ the callback independently of building it.
 | 4 | `respectReducedMotion: false` | [from issue] | Never create `gsap.matchMedia()`; behavior identical to today. |
 | 5 | `destroy()` while reduced motion active | [inferred] | Restore overflow, reset scroll, `mm.kill()`, plus existing teardown. |
 | 6 | Vertical direction (`ttb`/`btt`) | [inferred] | `overflowY` via existing `isVertical()`. |
-| 7 | `setDirection()` flips the axis at runtime while reduced motion active | [inferred] | Restore the old axis property, then apply the new one. |
+| 7 | `setDirection()` flips the axis at runtime while reduced motion active | [inferred] | ~~Restore the old axis property, then apply the new one.~~ Superseded by #69 — the call is refused, so the overflow stays put. See AC-19. |
 | 8 | `window.matchMedia` absent | [inferred] | Feature-detect before `gsap.matchMedia()`; fall through to animating, never throw. |
 | 9 | Browser does not support the `prefers-reduced-motion` feature | [inferred] | Gate on `reduce` only with animate-by-default. The issue's `no-preference` snippet would leave these browsers frozen forever — see Deviation below. |
 | 10 | `resume()` while reduced motion active | [from issue] | `paused = false`, but the ticker is not registered, so nothing moves. |

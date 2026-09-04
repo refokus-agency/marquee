@@ -999,6 +999,34 @@ describe('Marquee - setDirection Axis Guard', () => {
     },
   );
 
+  it('should honor a cross-axis change made before ready resolves', async () => {
+    const { track, wrapper } = buildFixture();
+
+    const registered: TickerCallback[] = [];
+    const originalAdd = gsap.ticker.add.bind(gsap.ticker);
+    vi.spyOn(gsap.ticker, 'add').mockImplementation((callback, ...rest) => {
+      registered.push(callback as TickerCallback);
+      return originalAdd(callback, ...rest);
+    });
+
+    // initialize() measures after two awaits, so nothing is bound to an axis
+    // yet and the change is simply read when the measuring happens. Refusing
+    // here would break a path that worked, leaving the marquee horizontal
+    // against the column layout the caller had already switched to.
+    const marquee = new Marquee(wrapper, { dragEase: 0 });
+    marquee.setDirection('ttb');
+    await marquee.ready;
+
+    registered.at(-1)?.(0, FRAME_DELTA_MS);
+
+    expect(marquee.getDirection()).toBe('ttb');
+    expect(gsap.getProperty(track, 'y')).not.toBe(0);
+    expect(gsap.getProperty(track, 'x')).toBe(0);
+    expect(warn).not.toHaveBeenCalled();
+
+    marquee.destroy();
+  });
+
   it('should keep animating the original axis after a refused change', async () => {
     const { track, wrapper } = buildFixture();
 

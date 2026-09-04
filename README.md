@@ -280,7 +280,8 @@ marquee.setDirection('rtl');   // from 'ltr' — fine
 marquee.setDirection('btt');   // from 'ttb' — fine
 ```
 
-Crossing axes is not supported. The call warns and leaves the instance untouched:
+Crossing axes on a **running** marquee is not supported. The call warns and
+leaves the instance untouched:
 
 ```typescript
 const marquee = await Marquee.create(el, { direction: 'ltr' });
@@ -315,6 +316,19 @@ marquee = await Marquee.create(wrapper, { direction: 'ttb' });
 For a responsive marquee that is horizontal on desktop and vertical on mobile,
 do this from a `gsap.matchMedia()` breakpoint so the swap is tied to the same
 media query as the CSS.
+
+One exception: **before `ready` resolves**, a cross-axis change is honored.
+Nothing has been measured at that point, so the direction is simply read when
+the measuring happens:
+
+```typescript
+const marquee = new Marquee(el);   // initializes asynchronously
+if (isMobile) marquee.setDirection('ttb');
+await marquee.ready;               // measures on height, animates y
+```
+
+Passing `direction` to the constructor is clearer, but this path works and is
+not rejected.
 
 #### Unsupported values
 
