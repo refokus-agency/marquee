@@ -18,7 +18,9 @@ and stays task-oriented.
 4. **Open a pull request against `main`**.
 
 Every change should trace back to an issue. If one does not exist yet, open it
-first — see [Submitting Issues](#submitting-issues).
+first — see [Submitting Issues](#submitting-issues). Wait for the issue to be
+triaged before you start writing code — see [Issue Triage](#issue-triage) for
+what that means and how long it takes.
 
 ## Development Setup
 
@@ -84,6 +86,38 @@ those privately via
 [a security advisory](https://github.com/refokus-agency/marquee/security/advisories/new).
 Never disclose a vulnerability in a public issue. See [SECURITY.md](SECURITY.md)
 for the full policy.
+
+## Issue Triage
+
+Every new issue is opened with the **`needs-triage`** label — both issue
+templates apply it automatically. It means exactly one thing: *no maintainer has
+reviewed this yet.*
+
+That matters if you were planning to write the fix yourself:
+
+- **While an issue carries `needs-triage`, please do not open a PR against it.**
+  It has not been accepted, and the approach in it has not been agreed. A
+  maintainer removes the label once the issue has been read and the direction is
+  settled — that removal is the green light to start work.
+- **`needs-info`** is the other direction of the same conversation: we read it,
+  and we cannot act until the reporter adds detail. If it lands on your issue,
+  the ball is with you — answer in a comment and a maintainer removes the label.
+
+Maintainers own triage, on the cadence in [Response Time](#response-time):
+within **5 business days** of an issue being opened. If `needs-triage` is still
+there after that, a nudge in the comments is welcome.
+
+Two honest caveats:
+
+- **Nothing enforces this.** No workflow reads either label, and no status check
+  fails because of one. It is a convention held up by people, not by CI — a PR
+  against an untriaged issue will not be blocked, it just risks being work
+  nobody asked for.
+- **A removed `needs-triage` is not a promise to merge.** It means the issue is
+  real and worth solving; the implementation still goes through normal review.
+
+If you would rather not wait, say so in the issue — "happy to implement this if
+you want it" is a perfectly good comment, and it usually gets triaged sooner.
 
 ## Submitting Pull Requests
 
