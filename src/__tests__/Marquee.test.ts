@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { gsap } from 'gsap';
 import { Observer } from 'gsap/dist/Observer';
 import { Marquee } from '../Marquee.ts';
+import type { MarqueeOptions } from '../types.ts';
 import {
   installMatchMedia,
   installUnsupportedMatchMedia,
@@ -459,39 +460,45 @@ describe('Marquee - Reduced Motion', () => {
     marquee.destroy();
   });
 
-  it('should move the overflow to the new axis when setDirection() flips it', async () => {
+  it('should leave the frozen container alone when setDirection() crosses axes', async () => {
     installMatchMedia(true);
     const { container, wrapper } = buildFixture();
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
     const marquee = new Marquee(wrapper);
     await marquee.ready;
     expect(container.style.overflowX).toBe('auto');
-
-    marquee.setDirection('ttb');
-
-    expect(container.style.overflowX).toBe('');
-    expect(container.style.overflowY).toBe('auto');
-
-    marquee.destroy();
-  });
-
-  it('should reset the abandoned axis scroll offset when setDirection() flips it', async () => {
-    installMatchMedia(true);
-    const { container, wrapper } = buildFixture();
-
-    const marquee = new Marquee(wrapper);
-    await marquee.ready;
 
     // The user scrolled the frozen marquee along the horizontal axis.
     container.scrollLeft = 250;
 
     marquee.setDirection('ttb');
 
-    // Restoring the horizontal overflow hands that axis back to the stylesheet's
-    // `overflow: hidden`, which PRESERVES the offset — so leaving it would strand
-    // the content 250px off-screen with no scrollbar left to bring it back.
-    expect(container.scrollLeft).toBe(0);
-    expect(container.style.overflowY).toBe('auto');
+    // The call is refused, so the horizontal axis is still the animated one and
+    // still the one that has to stay reachable. Moving the declaration — as this
+    // used to do defensively — would hand that axis back to the stylesheet's
+    // `overflow: hidden`, which PRESERVES the offset, stranding the content
+    // 250px off-screen with no scrollbar left to bring it back.
+    expect(container.style.overflowX).toBe('auto');
+    expect(container.style.overflowY).toBe('');
+    expect(container.scrollLeft).toBe(250);
+    expect(warn).toHaveBeenCalledOnce();
+
+    marquee.destroy();
+  });
+
+  it('should follow a same-axis setDirection() with the overflow it already had', async () => {
+    installMatchMedia(true);
+    const { container, wrapper } = buildFixture();
+
+    const marquee = new Marquee(wrapper);
+    await marquee.ready;
+
+    marquee.setDirection('rtl');
+
+    expect(marquee.getDirection()).toBe('rtl');
+    expect(container.style.overflowX).toBe('auto');
+    expect(container.style.overflowY).toBe('');
 
     marquee.destroy();
   });
@@ -930,4 +937,252 @@ describe('Marquee - Clone Accessibility', () => {
 
     marquee.destroy();
   });
+});
+
+describe('Marquee - setDirection Axis Guard', () => {
+  let warn: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    document.body.innerHTML = '';
+    warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    document.body.innerHTML = '';
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  it.each([
+    ['ltr', 'rtl'],
+    ['rtl', 'ltr'],
+    ['ttb', 'btt'],
+    ['btt', 'ttb'],
+  ] as const)(
+    'should apply a same-axis change from %s to %s',
+    async (from, to) => {
+      const { wrapper } = buildFixture();
+
+      const marquee = new Marquee(wrapper, { direction: from });
+      await marquee.ready;
+
+      marquee.setDirection(to);
+
+      expect(marquee.getDirection()).toBe(to);
+      expect(warn).not.toHaveBeenCalled();
+
+      marquee.destroy();
+    },
+  );
+
+  it.each([
+    ['ltr', 'ttb'],
+    ['ltr', 'btt'],
+    ['rtl', 'ttb'],
+    ['ttb', 'ltr'],
+    ['btt', 'rtl'],
+  ] as const)(
+    'should refuse a cross-axis change from %s to %s',
+    async (from, to) => {
+      const { wrapper } = buildFixture();
+
+      const marquee = new Marquee(wrapper, { direction: from });
+      await marquee.ready;
+
+      marquee.setDirection(to);
+
+      expect(marquee.getDirection()).toBe(from);
+      expect(warn).toHaveBeenCalledOnce();
+      expect(warn.mock.calls[0]?.[0]).toContain('crosses axes');
+
+      marquee.destroy();
+    },
+  );
+
+  it('should honor a cross-axis change made before ready resolves', async () => {
+    const { track, wrapper } = buildFixture();
+
+    const registered: TickerCallback[] = [];
+    const originalAdd = gsap.ticker.add.bind(gsap.ticker);
+    vi.spyOn(gsap.ticker, 'add').mockImplementation((callback, ...rest) => {
+      registered.push(callback as TickerCallback);
+      return originalAdd(callback, ...rest);
+    });
+
+    // initialize() measures after two awaits, so nothing is bound to an axis
+    // yet and the change is simply read when the measuring happens. Refusing
+    // here would break a path that worked, leaving the marquee horizontal
+    // against the column layout the caller had already switched to.
+    const marquee = new Marquee(wrapper, { dragEase: 0 });
+    marquee.setDirection('ttb');
+    await marquee.ready;
+
+    registered.at(-1)?.(0, FRAME_DELTA_MS);
+
+    expect(marquee.getDirection()).toBe('ttb');
+    expect(gsap.getProperty(track, 'y')).not.toBe(0);
+    expect(gsap.getProperty(track, 'x')).toBe(0);
+    expect(warn).not.toHaveBeenCalled();
+
+    marquee.destroy();
+  });
+
+  it('should keep animating the original axis after a refused change', async () => {
+    const { track, wrapper } = buildFixture();
+
+    // The per-frame advance is only reachable through the registration itself.
+    const registered: TickerCallback[] = [];
+    const originalAdd = gsap.ticker.add.bind(gsap.ticker);
+    vi.spyOn(gsap.ticker, 'add').mockImplementation((callback, ...rest) => {
+      registered.push(callback as TickerCallback);
+      return originalAdd(callback, ...rest);
+    });
+
+    // dragEase: 0 makes the quickTo write its target in the same frame, so the
+    // transform can be read back without stepping the global timeline.
+    const marquee = new Marquee(wrapper, { dragEase: 0 });
+    await marquee.ready;
+
+    marquee.setDirection('ttb');
+
+    const advanceFrame = registered.at(-1);
+    expect(advanceFrame).toBeDefined();
+    advanceFrame?.(0, FRAME_DELTA_MS);
+
+    // The invariant #69 broke: the axis the instance REPORTS is the axis it
+    // moves. Asserting x moves is not enough on its own — the pre-fix instance
+    // also moved x, it just called itself 'ttb' while doing it.
+    const reported = marquee.getDirection();
+    const movingAxis = gsap.getProperty(track, 'y') !== 0 ? 'y' : 'x';
+
+    expect(reported).toBe('ltr');
+    expect(movingAxis).toBe(reported === 'ltr' ? 'x' : 'y');
+    expect(gsap.getProperty(track, 'x')).not.toBe(0);
+    expect(gsap.getProperty(track, 'y')).toBe(0);
+
+    marquee.destroy();
+  });
+});
+
+describe('Marquee - Direction Validation', () => {
+  let warn: ReturnType<typeof vi.spyOn>;
+
+  /** Bypasses the compile-time type the way a JS consumer or a DOM attribute does. */
+  function setDirectionUnchecked(marquee: Marquee, direction: string): void {
+    (marquee as unknown as { setDirection: (d: string) => void }).setDirection(
+      direction,
+    );
+  }
+
+  function createUnchecked(wrapper: HTMLElement, direction: string): Marquee {
+    return new Marquee(wrapper, { direction } as unknown as MarqueeOptions);
+  }
+
+  beforeEach(() => {
+    document.body.innerHTML = '';
+    warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    document.body.innerHTML = '';
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  it.each(['TTB', 'vertical', 'up', 'top-to-bottom', '', 'LTR'])(
+    'should fall back to ltr when constructed with %o',
+    async (bogus) => {
+      const { wrapper } = buildFixture();
+
+      const marquee = createUnchecked(wrapper, bogus);
+      await marquee.ready;
+
+      expect(marquee.getDirection()).toBe('ltr');
+      expect(warn).toHaveBeenCalledOnce();
+      expect(warn.mock.calls[0]?.[0]).toContain('unsupported direction');
+
+      marquee.destroy();
+    },
+  );
+
+  it.each(['ltr', 'rtl', 'ttb', 'btt'] as const)(
+    'should accept %s without warning',
+    async (direction) => {
+      const { wrapper } = buildFixture();
+
+      const marquee = new Marquee(wrapper, { direction });
+      await marquee.ready;
+
+      expect(marquee.getDirection()).toBe(direction);
+      expect(warn).not.toHaveBeenCalled();
+
+      marquee.destroy();
+    },
+  );
+
+  it('should default silently when direction is explicitly undefined', async () => {
+    const { wrapper } = buildFixture();
+
+    // `{ direction: maybeUndefined }` is an ordinary way to build options, and
+    // the spread merge makes it an explicit undefined — a request for the
+    // default, not a typo worth warning about.
+    const marquee = new Marquee(wrapper, { direction: undefined });
+    await marquee.ready;
+
+    expect(marquee.getDirection()).toBe('ltr');
+    expect(warn).not.toHaveBeenCalled();
+
+    marquee.destroy();
+  });
+
+  it('should animate the fallback axis, not the bogus one', async () => {
+    const { track, wrapper } = buildFixture();
+
+    const registered: TickerCallback[] = [];
+    const originalAdd = gsap.ticker.add.bind(gsap.ticker);
+    vi.spyOn(gsap.ticker, 'add').mockImplementation((callback, ...rest) => {
+      registered.push(callback as TickerCallback);
+      return originalAdd(callback, ...rest);
+    });
+
+    const marquee = createUnchecked(wrapper, 'TTB');
+    await marquee.ready;
+
+    registered.at(-1)?.(0, FRAME_DELTA_MS);
+
+    // 'TTB' looks vertical to a human and is not, so the fallback has to be
+    // wholly horizontal — a period measured on width and a transform on x.
+    // Reported direction included: storing 'TTB' verbatim while moving x is
+    // the state this fallback exists to prevent, and it moves x either way.
+    expect(marquee.getDirection()).toBe('ltr');
+    expect(gsap.getProperty(track, 'x')).not.toBe(0);
+    expect(gsap.getProperty(track, 'y')).toBe(0);
+
+    marquee.destroy();
+  });
+
+  it.each(['ltr', 'rtl', 'ttb', 'btt'] as const)(
+    'should leave a live %s marquee untouched when setDirection() gets a bogus value',
+    async (direction) => {
+      const { wrapper } = buildFixture();
+
+      const marquee = new Marquee(wrapper, { direction });
+      await marquee.ready;
+
+      // A bogus value reads as horizontal to the axis check, so on a VERTICAL
+      // instance the axis guard already rejects it as a cross-axis change. The
+      // horizontal cases are the ones that need the type check of their own —
+      // without it 'TTB' passes the axis guard and is stored verbatim.
+      setDirectionUnchecked(marquee, 'TTB');
+
+      // Defaulting to 'ltr' here — as construction does — would cross a
+      // vertical instance onto an axis its layout has no CSS for, which is
+      // what the axis guard refuses. A typo is not a request to change axis.
+      expect(marquee.getDirection()).toBe(direction);
+      expect(warn).toHaveBeenCalledOnce();
+      expect(warn.mock.calls[0]?.[0]).toContain('was ignored');
+
+      marquee.destroy();
+    },
+  );
 });
