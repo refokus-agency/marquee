@@ -20,7 +20,6 @@ const DEFAULT_CONFIG: Required<MarqueeConfig> = {
   pauseOnHover: false,
   respectReducedMotion: true,
   wrapperSelector: '[data-marquee]',
-  itemSelector: '[data-marquee-item]',
   directionAttribute: 'data-marquee-direction',
   speedAttribute: 'data-marquee-speed',
   draggableAttribute: 'data-marquee-draggable',
@@ -43,7 +42,6 @@ export async function initMarquee(
   const mergedConfig = { ...DEFAULT_CONFIG, ...config };
   const {
     wrapperSelector,
-    itemSelector: _itemSelector,
     directionAttribute,
     speedAttribute,
     draggableAttribute,
