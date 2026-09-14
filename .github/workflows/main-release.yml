@@ -53,7 +53,7 @@ jobs:
 
   release:
     needs: ci
-    uses: refokus-agency/platform/.github/workflows/release.yml@v1.8.1
+    uses: refokus-agency/platform/.github/workflows/release.yml@v1.10.2
     with:
       registry: npm
       provenance: true
