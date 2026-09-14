@@ -1,0 +1,64 @@
+# Comment-triggered Claude code review for @refokus-agency/marquee.
+#
+# Delegates to the shared reusable in refokus-agency/platform, like pr-ci.yml. Reference
+# implementation: refokus-agency/navigation (navigation#89).
+#
+# No `pull_request` trigger by design — review runs when a human asks for it. Reviewing
+# every push would bill a model run per commit, and Dependabot traffic here is steady.
+#
+# Both halves pinned to v1.10.2, for the reason pr-ci.yml already explains in full:
+# `platform-ref` drives a SECOND checkout of platform — here, the guard script behind
+# "Verify review outcome" — and defaults to `main`, so half-pinning lets the two drift.
+# navigation ships this without `platform-ref`; marquee pins it. Tags move: v1.10.2 is
+# afb47de8f546213d30186e12e540b466b28b9a68 today. Dependabot rewrites `uses:` but cannot
+# see inside `with:` — bump both lines together or neither.
+#
+# Secrets mapped explicitly, not inherited: this job needs one and never touches the package
+# registry, which is why marquee's other two callers legitimately do inherit. Cost of the
+# narrow map — if the org configures CLAUDE_CODE_OAUTH_TOKEN instead, nothing is forwarded
+# and the job skips; the fix is one more line here.
+#
+# `id-token: write` is required on EVERY run, and not for the Anthropic credential: the
+# reusable passes no `github_token`, so claude-code-action's setupGitHubToken() falls through
+# to core.getIDToken() and trades it for a GitHub App token. Remove it and every review dies
+# red with "Could not fetch an OIDC token" — not a green skip. navigation's comment calls this
+# grant inert; that is wrong, it describes the separate (and genuinely dormant) Anthropic
+# federation path.
+#
+# What this `permissions:` block does NOT bound: that App token carries the org installation's
+# own scopes (contents/actions/workflows write, all repos), so the install — not this file —
+# caps what a review can touch. The reusable's actor gate is an approximation too: it accepts
+# author_association COLLABORATOR, which GitHub also grants read-only collaborators. Both are
+# platform-level, and neither is fixable from here.
+#
+# Safe to merge with no credential configured: the reusable's gates (auth, actor, fork, PR
+# state) all skip green with a `::notice::`. Same reason `cancel-in-progress` is false — any
+# comment on any issue starts this job before the phrase gate rejects it, and a queued run
+# must never kill a review already running and being paid for.
+
+name: Comment Code Review
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+  id-token: write
+
+concurrency:
+  # Keyed on issue.number: github.event.pull_request.number is empty on issue_comment,
+  # so using it would collapse every pull request into a single group.
+  group: ${{ github.workflow }}-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  code-review:
+    uses: refokus-agency/platform/.github/workflows/code-review.yml@v1.10.2
+    with:
+      # Bump this together with the `uses:` ref above.
+      platform-ref: v1.10.2
+    secrets:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
