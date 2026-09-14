@@ -48,13 +48,18 @@ concurrency:
 
 jobs:
   ci:
-    uses: refokus-agency/platform/.github/workflows/ci.yml@v1
+    uses: refokus-agency/platform/.github/workflows/ci.yml@v1.10.3
+    with:
+      # Bump this together with the `uses:` ref above.
+      platform-ref: v1.10.3
     secrets: inherit
 
   release:
     needs: ci
-    uses: refokus-agency/platform/.github/workflows/release.yml@v1.10.2
+    uses: refokus-agency/platform/.github/workflows/release.yml@v1.10.3
     with:
+      # Bump this together with the `uses:` ref above.
+      platform-ref: v1.10.3
       registry: npm
       provenance: true
     secrets: inherit

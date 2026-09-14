@@ -56,9 +56,9 @@ concurrency:
 
 jobs:
   code-review:
-    uses: refokus-agency/platform/.github/workflows/code-review.yml@v1.10.2
+    uses: refokus-agency/platform/.github/workflows/code-review.yml@v1.10.3
     with:
       # Bump this together with the `uses:` ref above.
-      platform-ref: v1.10.2
+      platform-ref: v1.10.3
     secrets:
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
