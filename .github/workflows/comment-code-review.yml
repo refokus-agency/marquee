@@ -48,11 +48,6 @@ permissions:
   issues: write
   id-token: write
 
-# No caller-side `concurrency`. Serialization is owned by the reusable as of platform
-# v1.11.0: a caller group cannot read the reusable's `inputs`, so it would capture every
-# issue_comment in the repo, and GitHub cancels PENDING runs in a group unconditionally —
-# `cancel-in-progress: false` does not protect them. See platform
-# docs/architecture.md#why-serialization-lives-in-the-reusable-not-the-caller.
 
 jobs:
   code-review:
