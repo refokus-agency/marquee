@@ -32,9 +32,9 @@
 # platform-level, and neither is fixable from here.
 #
 # Safe to merge with no credential configured: the reusable's gates (auth, actor, fork, PR
-# state) all skip green with a `::notice::`. Same reason `cancel-in-progress` is false — any
-# comment on any issue starts this job before the phrase gate rejects it, and a queued run
-# must never kill a review already running and being paid for.
+# state) all skip green with a `::notice::`. Note that any comment on any issue starts this
+# job before the phrase gate rejects it — which is precisely why serialization belongs to the
+# reusable, where the group can key off the trigger phrase. See the note above `jobs:`.
 
 name: Comment Code Review
 
@@ -48,17 +48,17 @@ permissions:
   issues: write
   id-token: write
 
-concurrency:
-  # Keyed on issue.number: github.event.pull_request.number is empty on issue_comment,
-  # so using it would collapse every pull request into a single group.
-  group: ${{ github.workflow }}-${{ github.event.issue.number }}
-  cancel-in-progress: false
+# No caller-side `concurrency`. Serialization is owned by the reusable as of platform
+# v1.11.0: a caller group cannot read the reusable's `inputs`, so it would capture every
+# issue_comment in the repo, and GitHub cancels PENDING runs in a group unconditionally —
+# `cancel-in-progress: false` does not protect them. See platform
+# docs/architecture.md#why-serialization-lives-in-the-reusable-not-the-caller.
 
 jobs:
   code-review:
-    uses: refokus-agency/platform/.github/workflows/code-review.yml@v1.10.3
+    uses: refokus-agency/platform/.github/workflows/code-review.yml@v1.11.0
     with:
       # Bump this together with the `uses:` ref above.
-      platform-ref: v1.10.3
+      platform-ref: v1.11.0
     secrets:
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
