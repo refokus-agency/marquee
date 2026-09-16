@@ -3,7 +3,7 @@
 # This workflow intentionally contains no build logic of its own. It delegates to the
 # shared reusable workflow in refokus-agency/platform so that every Refokus package
 # runs the same pipeline, and so pipeline changes ship from one place instead of being
-# copy-pasted across repos. The reference implementation is refokus-agency/navigation.
+# copy-pasted across repos.
 #
 # What the reusable workflow runs, in order:
 #   1. Detects the package manager from the committed lockfile. `pnpm-lock.yaml` is
@@ -28,12 +28,11 @@
 # `platform-ref` says — and that input defaults to `main`. So pinning only the `uses:` line
 # freezes the choreography while the actions it calls keep moving underneath it. Pinning
 # only `platform-ref` does the reverse, and lets a newer `ci.yml` call an older `setup`.
-# Either half-pin lets the two drift apart, so both name v1.8.1.
+# Either half-pin lets the two drift apart, so both always name the same release.
 #
 # The cost is that platform improvements no longer arrive on their own: bumping is now a
 # deliberate edit here. That is the trade we want — CI behaviour should change because
 # someone changed it in this repo, not because something landed on platform's main.
-# This is the one place marquee diverges from navigation, which takes the defaults.
 #
 # `secrets: inherit` is required for the package registry auth above.
 #
@@ -55,7 +54,7 @@ concurrency:
 
 jobs:
   ci:
-    uses: refokus-agency/platform/.github/workflows/ci.yml@v1.8.1
+    uses: refokus-agency/platform/.github/workflows/ci.yml@v1.11.0
     with:
-      platform-ref: v1.8.1
+      platform-ref: v1.11.0
     secrets: inherit

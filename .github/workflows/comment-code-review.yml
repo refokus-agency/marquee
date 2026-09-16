@@ -1,0 +1,47 @@
+# Comment-triggered Claude code review for @refokus-agency/marquee.
+# Delegates to the shared reusable in refokus-agency/platform, like pr-ci.yml.
+#
+# No `pull_request` trigger by design: review runs when a human asks for it. Reviewing every
+# push would bill a model run per commit, and Dependabot traffic here is steady.
+#
+# Both halves pinned — pr-ci.yml explains why in full. `platform-ref` drives a SECOND checkout
+# of platform (here, the guard script behind "Verify review outcome") and defaults to `main`.
+#
+# Secrets mapped explicitly rather than inherited: this job needs one and never touches the
+# package registry. Cost of the narrow map — if the org configures CLAUDE_CODE_OAUTH_TOKEN
+# instead, nothing is forwarded and the job skips; the fix is one more line here.
+#
+# `id-token: write` is required on EVERY run, and not for the Anthropic credential: the
+# reusable passes no `github_token`, so claude-code-action falls through to core.getIDToken()
+# and trades it for a GitHub App token. Remove it and every review dies red, not green-skips.
+#
+# That App token carries the org installation's scopes (contents/actions/workflows write, all
+# repos), so the install — not this `permissions:` block — caps what a review can touch. The
+# actor gate is an approximation too: it accepts author_association COLLABORATOR, which GitHub
+# also grants read-only collaborators. Both are platform-level, unfixable from here.
+#
+# No caller-side `concurrency`: the reusable owns serialization, and its group keys off the
+# trigger phrase, which a caller group cannot read.
+#
+# Safe to merge with no credential configured: the reusable's gates (auth, actor, fork, PR
+# state) all skip green with a `::notice::`.
+name: Comment Code Review
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+  id-token: write
+
+jobs:
+  code-review:
+    uses: refokus-agency/platform/.github/workflows/code-review.yml@v1.11.0
+    with:
+      # Bump this together with the `uses:` ref above.
+      platform-ref: v1.11.0
+    secrets:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
