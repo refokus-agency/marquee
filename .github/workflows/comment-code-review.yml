@@ -1,42 +1,30 @@
 # Comment-triggered Claude code review for @refokus-agency/marquee.
+# Delegates to the shared reusable in refokus-agency/platform, like pr-ci.yml.
 #
-# Delegates to the shared reusable in refokus-agency/platform, like pr-ci.yml. Reference
-# implementation: refokus-agency/navigation (navigation#89).
+# No `pull_request` trigger by design: review runs when a human asks for it. Reviewing every
+# push would bill a model run per commit, and Dependabot traffic here is steady.
 #
-# No `pull_request` trigger by design — review runs when a human asks for it. Reviewing
-# every push would bill a model run per commit, and Dependabot traffic here is steady.
+# Both halves pinned — pr-ci.yml explains why in full. `platform-ref` drives a SECOND checkout
+# of platform (here, the guard script behind "Verify review outcome") and defaults to `main`.
 #
-# Both halves pinned to v1.10.2, for the reason pr-ci.yml already explains in full:
-# `platform-ref` drives a SECOND checkout of platform — here, the guard script behind
-# "Verify review outcome" — and defaults to `main`, so half-pinning lets the two drift.
-# navigation ships this without `platform-ref`; marquee pins it. Tags move: v1.10.2 is
-# afb47de8f546213d30186e12e540b466b28b9a68 today. Dependabot rewrites `uses:` but cannot
-# see inside `with:` — bump both lines together or neither.
-#
-# Secrets mapped explicitly, not inherited: this job needs one and never touches the package
-# registry, which is why marquee's other two callers legitimately do inherit. Cost of the
-# narrow map — if the org configures CLAUDE_CODE_OAUTH_TOKEN instead, nothing is forwarded
-# and the job skips; the fix is one more line here.
+# Secrets mapped explicitly rather than inherited: this job needs one and never touches the
+# package registry. Cost of the narrow map — if the org configures CLAUDE_CODE_OAUTH_TOKEN
+# instead, nothing is forwarded and the job skips; the fix is one more line here.
 #
 # `id-token: write` is required on EVERY run, and not for the Anthropic credential: the
-# reusable passes no `github_token`, so claude-code-action's setupGitHubToken() falls through
-# to core.getIDToken() and trades it for a GitHub App token. Remove it and every review dies
-# red with "Could not fetch an OIDC token" — not a green skip. navigation's comment calls this
-# grant inert; that is wrong, it describes the separate (and genuinely dormant) Anthropic
-# federation path.
+# reusable passes no `github_token`, so claude-code-action falls through to core.getIDToken()
+# and trades it for a GitHub App token. Remove it and every review dies red, not green-skips.
 #
-# What this `permissions:` block does NOT bound: that App token carries the org installation's
-# own scopes (contents/actions/workflows write, all repos), so the install — not this file —
-# caps what a review can touch. The reusable's actor gate is an approximation too: it accepts
-# author_association COLLABORATOR, which GitHub also grants read-only collaborators. Both are
-# platform-level, and neither is fixable from here.
+# That App token carries the org installation's scopes (contents/actions/workflows write, all
+# repos), so the install — not this `permissions:` block — caps what a review can touch. The
+# actor gate is an approximation too: it accepts author_association COLLABORATOR, which GitHub
+# also grants read-only collaborators. Both are platform-level, unfixable from here.
+#
+# No caller-side `concurrency`: the reusable owns serialization, and its group keys off the
+# trigger phrase, which a caller group cannot read.
 #
 # Safe to merge with no credential configured: the reusable's gates (auth, actor, fork, PR
 # state) all skip green with a `::notice::`.
-#
-# No caller-side `concurrency`: the reusable owns review serialization, and its group keys off
-# the trigger phrase, which a caller group cannot read.
-
 name: Comment Code Review
 
 on:

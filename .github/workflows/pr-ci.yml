@@ -28,7 +28,7 @@
 # `platform-ref` says — and that input defaults to `main`. So pinning only the `uses:` line
 # freezes the choreography while the actions it calls keep moving underneath it. Pinning
 # only `platform-ref` does the reverse, and lets a newer `ci.yml` call an older `setup`.
-# Either half-pin lets the two drift apart, so both name v1.8.1.
+# Either half-pin lets the two drift apart, so both always name the same release.
 #
 # The cost is that platform improvements no longer arrive on their own: bumping is now a
 # deliberate edit here. That is the trade we want — CI behaviour should change because
