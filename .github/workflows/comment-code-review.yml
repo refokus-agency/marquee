@@ -32,9 +32,10 @@
 # platform-level, and neither is fixable from here.
 #
 # Safe to merge with no credential configured: the reusable's gates (auth, actor, fork, PR
-# state) all skip green with a `::notice::`. Note that any comment on any issue starts this
-# job before the phrase gate rejects it — which is precisely why serialization belongs to the
-# reusable, where the group can key off the trigger phrase. See the note above `jobs:`.
+# state) all skip green with a `::notice::`.
+#
+# No caller-side `concurrency`: the reusable owns review serialization, and its group keys off
+# the trigger phrase, which a caller group cannot read.
 
 name: Comment Code Review
 
@@ -47,7 +48,6 @@ permissions:
   pull-requests: write
   issues: write
   id-token: write
-
 
 jobs:
   code-review:
