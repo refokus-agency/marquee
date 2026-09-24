@@ -23,7 +23,11 @@ GSAP-powered infinite marquee/carousel using **class-based OOP architecture**.
 - Dynamic cloning based on container width (auto add/remove on resize)
 - Configurable direction (LTR/RTL) and speed via data attributes
 - Drag/touch interaction support via GSAP Observer
-- Pause on hover option
+- Pause on hover and pause on focus options
+- Binds an integrator-supplied pause button (WCAG 2.2.2); ships no CSS for it
+- Separates **explicit** intent (API, button) from **transient** presence
+  (hover, focus): a press outranks both directions, so leaving hover never
+  resumes a deliberate pause and never re-pauses a deliberate resume
 - Debounced resize handling (150ms)
 
 ## Required HTML Structure
@@ -42,6 +46,8 @@ The marquee requires a **3-level structure**:
     </div>
     <!-- Clones appended here automatically -->
   </div>
+  <!-- Optional pause button: inside the container, OUTSIDE the track -->
+  <button type="button" data-marquee-pause-button>Pause</button>
 </div>
 ```
 
@@ -66,7 +72,10 @@ The marquee requires a **3-level structure**:
 }
 ```
 
-**Data attributes:** `data-marquee-direction="rtl"`, `data-marquee-speed="2"`
+**Data attributes:** `data-marquee-direction="rtl"`, `data-marquee-speed="2"`,
+`data-marquee-pause-on-hover`, `data-marquee-pause-on-focus`,
+`data-marquee-pause-button-enabled="false"` (opts out of the button and its
+warning). `data-marquee-pause-button` goes on the button, not the wrapper.
 
 ## Build/Lint/Test Commands
 
