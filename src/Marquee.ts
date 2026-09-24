@@ -48,6 +48,36 @@ const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)';
 const REDUCED_MOTION_OVERFLOW = 'auto';
 
 /**
+ * Every direction the library accepts, in one place so {@link isMarqueeDirection}
+ * and the warning it feeds can never drift out of step with the type.
+ */
+const DIRECTIONS: readonly MarqueeDirection[] = ['ltr', 'rtl', 'ttb', 'btt'];
+
+/**
+ * Whether a value is one of the four supported directions.
+ *
+ * `MarqueeDirection` is a compile-time guarantee only, and two paths reach the
+ * constructor without one: a plain-JS consumer (the Webflow script embed has no
+ * type checking at all), and the `data-marquee-direction` attribute, which
+ * `initMarquee` reads as a raw string. A typo in the Designer — `"TTB"`,
+ * `"vertical"` — would otherwise be stored verbatim and animate horizontally,
+ * with `getDirection()` reporting the typo back.
+ */
+function isMarqueeDirection(value: unknown): value is MarqueeDirection {
+  return DIRECTIONS.includes(value as MarqueeDirection);
+}
+
+/**
+ * Whether a direction scrolls along the vertical axis.
+ *
+ * Free of instance state so {@link Marquee.setDirection} can ask the question
+ * of an incoming direction, which is the whole point of the axis guard there.
+ */
+function isVerticalDirection(direction: MarqueeDirection): boolean {
+  return direction === 'ttb' || direction === 'btt';
+}
+
+/**
  * What would become a tab stop inside a clone. `[tabindex]` catches anything
  * the integrator made focusable by hand, including the wrapper itself.
  */
@@ -143,7 +173,14 @@ export class Marquee {
 
   constructor(element: HTMLElement, options: MarqueeOptions = {}) {
     this.element = element;
-    this.options = { ...DEFAULT_OPTIONS, ...options };
+
+    const merged = { ...DEFAULT_OPTIONS, ...options };
+    // Sanitized into `options` rather than just `direction` so there is one
+    // truth: an unsupported value must not survive anywhere on the instance.
+    this.options = {
+      ...merged,
+      direction: this.resolveDirection(merged.direction),
+    };
     this.speed = this.options.speed;
     this.direction = this.options.direction;
 
@@ -204,6 +241,36 @@ export class Marquee {
     this.initialized = true;
   }
 
+  /**
+   * Falls back to the documented `ltr` default when the configured direction is
+   * not one the library supports, warning so the typo is findable.
+   *
+   * Construction is the one place a bad value CAN be defaulted: nothing is
+   * bound to an axis yet, so landing on `ltr` is the same as never having been
+   * given anything. {@link setDirection} deliberately does not do this — see
+   * the note there.
+   */
+  private resolveDirection(direction: MarqueeDirection): MarqueeDirection {
+    if (isMarqueeDirection(direction)) return direction;
+
+    // `{ direction: undefined }` is legal for an optional property, and the
+    // spread merge turns it into an explicit undefined rather than dropping it.
+    // That is a caller asking for the default, not a typo, so it defaults
+    // silently — warning there would fire on `{ direction: maybeUndefined }`.
+    if (direction === undefined || direction === null) {
+      return DEFAULT_OPTIONS.direction;
+    }
+
+    console.warn(
+      `Marquee: unsupported direction ${JSON.stringify(direction)}. ` +
+        `Expected one of ${DIRECTIONS.join(', ')} — falling back to ` +
+        `'${DEFAULT_OPTIONS.direction}'.`,
+      this.element,
+    );
+
+    return DEFAULT_OPTIONS.direction;
+  }
+
   private getTrackElement(): HTMLElement {
     const track = this.element.parentElement;
     if (!track) {
@@ -221,7 +288,7 @@ export class Marquee {
   }
 
   private isVertical(): boolean {
-    return this.direction === 'ttb' || this.direction === 'btt';
+    return isVerticalDirection(this.direction);
   }
 
   /**
@@ -574,25 +641,71 @@ export class Marquee {
     return this.speed;
   }
 
+  /**
+   * Updates the scroll direction — within the current axis only.
+   *
+   * A same-axis flip (`ltr` ↔ `rtl`, `ttb` ↔ `btt`) is a one-line state
+   * change, because the only thing reading the direction per frame is the sign
+   * in {@link createTickerCallback}. A cross-axis change is REJECTED: it warns
+   * and leaves the instance untouched.
+   *
+   * Refusing beats reassigning, which is all this used to do. Everything that
+   * drives the animation is bound to the axis the instance was built on —
+   * `moveTo` writes a fixed `x` or `y` ({@link createQuickTo}), `originalSize`
+   * measures one dimension ({@link measurePeriod}), `wrap` derives from it, and
+   * the clone count reads the matching container dimension
+   * ({@link updateClones}). Reassigning alone left the instance reporting the
+   * new direction while still animating the old axis, with a period and a clone
+   * count computed for it — until the next window resize rebuilt all four and
+   * hid the inconsistency, which is what made it look intermittent (#69).
+   *
+   * Rebuilding those four here would not be enough either: a vertical marquee
+   * also needs `flex-direction: column` plus `height: max-content` on the track
+   * and wrapper. Those live in the integrator's stylesheet, the library never
+   * writes them, and a class swap fires no event this instance can observe. So
+   * crossing axes is a `destroy()` and a fresh instance, not a setter.
+   *
+   * Before {@link ready} resolves the axis is not bound to anything yet, so a
+   * cross-axis change there is honored rather than refused — see the guard.
+   */
   public setDirection(direction: MarqueeDirection): void {
-    const wasVertical = this.isVertical();
-    this.direction = direction;
-
-    // Crossing axes is NOT a supported operation (see the README): `moveTo` and
-    // `originalSize` stay bound to the old axis, so the animation would keep
-    // running the wrong one — tracked separately in #69. This branch is purely
-    // defensive: if an integrator crosses anyway while frozen, at least the
-    // container is left consistent rather than holding a scrollbar on an axis
-    // nothing scrolls and none on the axis that needs it.
-    if (this.reducedMotion && this.isVertical() !== wasVertical) {
-      // Zeroed before the declaration moves, for the same reason
-      // exitReducedMotion() does it: handing the old axis back to `overflow:
-      // hidden` PRESERVES whatever offset the user scrolled to, stranding that
-      // content off-screen with no scrollbar left on that axis to reach it.
-      this.resetContainerScroll();
-      this.restoreContainerOverflow();
-      this.applyScrollOverflow();
+    // NOT defaulted to 'ltr' the way construction does. A live vertical marquee
+    // handed a typo would then be silently switched to a horizontal axis it has
+    // no layout for — the very failure the axis guard below exists to prevent.
+    // Leaving the direction untouched is the conservative read of a typo.
+    if (!isMarqueeDirection(direction)) {
+      console.warn(
+        `Marquee: setDirection(${JSON.stringify(direction)}) is not one of ` +
+          `${DIRECTIONS.join(', ')} and was ignored. The direction is still ` +
+          `'${this.direction}'.`,
+        this.element,
+      );
+      return;
     }
+
+    // Gated on `initialized`, which is a precise proxy for "an axis is bound":
+    // everything from the last `await` in initialize() through the flag runs
+    // synchronously, so no caller can land in between. Before that flag,
+    // `initialize()` has yet to measure and nothing derives from the direction
+    // — a pre-`ready` change is simply read when the measuring happens, which
+    // is how `new Marquee(el); if (mobile) m.setDirection('ttb');` produced a
+    // genuinely vertical marquee before this guard existed. Refusing there
+    // would break a working path and leave the marquee horizontal against the
+    // column layout the caller had already switched to.
+    const crossesAxis = isVerticalDirection(direction) !== this.isVertical();
+
+    if (this.initialized && crossesAxis) {
+      console.warn(
+        `Marquee: setDirection('${direction}') crosses axes from ` +
+          `'${this.direction}' and was ignored. Horizontal and vertical ` +
+          'marquees need different track CSS, so switching axes means ' +
+          'destroy() and a new instance.',
+        this.element,
+      );
+      return;
+    }
+
+    this.direction = direction;
   }
 
   public getDirection(): MarqueeDirection {

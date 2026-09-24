@@ -20,6 +20,8 @@ A GSAP-powered infinite marquee component for smooth, continuous scrolling anima
   - [Using the Marquee Class Directly](#using-the-marquee-class-directly)
   - [Factory Function](#factory-function)
   - [Instance Control](#instance-control)
+  - [Changing direction](#changing-direction)
+    - [Unsupported values](#unsupported-values)
   - [Data Attributes](#data-attributes)
 - [Accessibility](#accessibility)
   - [Reduced Motion](#reduced-motion)
@@ -261,13 +263,106 @@ marquee.setSpeed(2);
 marquee.getSpeed();       // 2
 
 marquee.setDirection('rtl');
-marquee.getDirection();   // 'rtl'
+marquee.getDirection();   // 'rtl' — same axis, applied
 
 marquee.isReady();        // true after images loaded
 marquee.isDestroyed();    // false
 
 marquee.destroy();        // removes clones, listeners, resets transform
 ```
+
+### Changing direction
+
+`setDirection()` changes direction **within the axis the instance was built on**:
+
+```typescript
+marquee.setDirection('rtl');   // from 'ltr' — fine
+marquee.setDirection('btt');   // from 'ttb' — fine
+```
+
+Crossing axes on a **running** marquee is not supported. The call warns and
+leaves the instance untouched:
+
+```typescript
+const marquee = await Marquee.create(el, { direction: 'ltr' });
+
+marquee.setDirection('ttb');
+// > Marquee: setDirection('ttb') crosses axes from 'ltr' and was ignored. …
+
+marquee.getDirection();   // still 'ltr'
+```
+
+The reason is that a vertical marquee is not just a different sign on the same
+animation — it needs different CSS. `flex-direction: column` and
+`height: max-content` on the track and wrapper live in **your** stylesheet
+(see [Vertical (TTB / BTT)](#vertical-ttb--btt)), and the library never writes
+them. A setter that flipped the JS side alone would animate the wrong axis of a
+layout that is still a row.
+
+To switch axes, recreate the instance alongside the layout change:
+
+```typescript
+let marquee = await Marquee.create(wrapper, { direction: 'ltr' });
+
+// …later, when the layout switches to vertical
+marquee.destroy();
+
+track.className = 'marquee-track-vertical';
+wrapper.className = 'marquee-wrapper-vertical';
+
+marquee = await Marquee.create(wrapper, { direction: 'ttb' });
+```
+
+For a responsive marquee that is horizontal on desktop and vertical on mobile,
+do this from a `gsap.matchMedia()` breakpoint so the swap is tied to the same
+media query as the CSS.
+
+One exception: **before `ready` resolves**, a cross-axis change is honored.
+Nothing has been measured at that point, so the direction is simply read when
+the measuring happens:
+
+```typescript
+const marquee = new Marquee(el);   // initializes asynchronously
+if (isMobile) marquee.setDirection('ttb');
+await marquee.ready;               // measures on height, animates y
+```
+
+Passing `direction` to the constructor is clearer, but this path works and is
+not rejected.
+
+#### Unsupported values
+
+The four directions are **case-sensitive**, and `MarqueeDirection` only checks
+at compile time — a script embed or a `data-marquee-direction` typo reaches the
+library as a raw string. Both are validated at runtime.
+
+An unsupported value at construction warns and falls back to the documented
+`ltr` default:
+
+```html
+<div data-marquee data-marquee-direction="TTB">…</div>
+```
+
+```text
+Marquee: unsupported direction "TTB". Expected one of ltr, rtl, ttb, btt —
+falling back to 'ltr'.
+```
+
+The marquee then runs as `ltr` and `getDirection()` reports `'ltr'`, not the
+typo.
+
+`setDirection()` does **not** default an unsupported value — it warns and keeps
+the direction it has:
+
+```typescript
+marquee.setDirection('TTB' as MarqueeDirection);
+// > Marquee: setDirection("TTB") is not one of ltr, rtl, ttb, btt and was
+//   ignored. The direction is still 'ttb'.
+```
+
+Falling back to `ltr` there would switch a running vertical marquee onto an
+axis its layout has no CSS for — the same failure the axis rule above prevents.
+A typo is not a request to change axis.
 
 ### Data Attributes
 
@@ -309,7 +404,7 @@ Configure each marquee instance directly in HTML — no JS config needed when us
 | Attribute | Values | Default |
 |-----------|--------|---------|
 | `data-marquee` | *(empty — marks the wrapper)* | — |
-| `data-marquee-direction` | `ltr` \| `rtl` \| `ttb` \| `btt` | `ltr` |
+| `data-marquee-direction` | `ltr` \| `rtl` \| `ttb` \| `btt` | `ltr` (anything else warns and falls back) |
 | `data-marquee-speed` | any number, e.g. `2` | `1` |
 | `data-marquee-draggable` | `true` \| `false` | `false` |
 | `data-marquee-pause-on-hover` | `true` \| `false` | `false` |
@@ -445,7 +540,7 @@ Select the **Wrapper** div, open **Element Settings → Custom Attributes**, and
 | Attribute | Value |
 |-----------|-------|
 | `data-marquee` | *(leave value empty)* |
-| `data-marquee-direction` | `ltr`, `rtl`, `ttb`, or `btt` |
+| `data-marquee-direction` | `ltr`, `rtl`, `ttb`, or `btt` — case-sensitive |
 | `data-marquee-speed` | e.g. `2` |
 | `data-marquee-draggable` | `true` or `false` |
 | `data-marquee-pause-on-hover` | `true` or `false` |
@@ -598,7 +693,7 @@ Additional options for `initMarquee()`:
 | `isReady()` | `boolean` | True after images loaded and init complete |
 | `setSpeed(speed)` | `void` | Update scroll speed |
 | `getSpeed()` | `number` | Get current speed |
-| `setDirection(dir)` | `void` | Update scroll direction — **same axis only** (`ltr` ↔ `rtl`, `ttb` ↔ `btt`). Crossing axes is not supported |
+| `setDirection(dir)` | `void` | Update scroll direction — **same axis only** (`ltr` ↔ `rtl`, `ttb` ↔ `btt`). A cross-axis call warns and is ignored, see [Changing direction](#changing-direction) |
 | `getDirection()` | `MarqueeDirection` | Get current direction |
 | `isDestroyed()` | `boolean` | Check if destroyed |
 | `destroy()` | `void` | Clean up clones, listeners, and transforms |
