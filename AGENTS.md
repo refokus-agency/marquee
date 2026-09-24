@@ -146,7 +146,7 @@ import type { MarqueeConfig, MarqueeInstance } from './types.ts';
 | Functions               | camelCase             | `initMarquee`, `createMarquee`               |
 | Types/Interfaces        | PascalCase            | `MarqueeConfig`, `MarqueeOptions`            |
 | Constants               | SCREAMING_SNAKE_CASE  | `DEFAULT_OPTIONS`, `RESIZE_DEBOUNCE_MS`      |
-| Unused params           | `_` prefix            | `_itemSelector`, `_time`                     |
+| Unused params           | `_` prefix            | `_event`, `_time`                            |
 
 ## Type Definitions
 

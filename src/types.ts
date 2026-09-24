@@ -59,16 +59,6 @@ export interface MarqueeConfig extends MarqueeOptions {
   wrapperSelector?: string;
 
   /**
-   * Selector for the items inside the marquee
-   * @deprecated This option has no effect. The marquee treats the wrapper as an
-   * atomic unit and never queries its items, so the selector is ignored. It is
-   * kept only for backward compatibility and will be removed in `2.0.0` — see
-   * https://github.com/refokus-agency/marquee/issues/67
-   * @default '[data-marquee-item]'
-   */
-  itemSelector?: string;
-
-  /**
    * Attribute name to read direction from the element
    * @default 'data-marquee-direction'
    */
