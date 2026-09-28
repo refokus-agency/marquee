@@ -581,7 +581,6 @@ Additional options for `initMarquee()`:
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
 | `wrapperSelector` | `string` | `'[data-marquee]'` | Selector for wrapper elements |
-| `itemSelector` | `string` | `'[data-marquee-item]'` | **Deprecated** — has no effect and is ignored. Kept for backward compatibility; will be removed in `2.0.0` ([#67](https://github.com/refokus-agency/marquee/issues/67)) |
 | `directionAttribute` | `string` | `'data-marquee-direction'` | Attribute name for direction |
 | `speedAttribute` | `string` | `'data-marquee-speed'` | Attribute name for speed |
 | `draggableAttribute` | `string` | `'data-marquee-draggable'` | Attribute name for draggable |
