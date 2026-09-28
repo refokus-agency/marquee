@@ -59,7 +59,7 @@ jobs:
     uses: refokus-agency/platform/.github/workflows/release.yml@v1.12.0
     with:
       # Bump this together with the `uses:` ref above.
-      platform-ref: v1.11.0
+      platform-ref: v1.12.0
       registry: npm
       provenance: true
     secrets: inherit
