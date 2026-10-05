@@ -799,18 +799,30 @@ export class Marquee {
   }
 
   /**
-   * Toggles against what the marquee is actually doing, not against the reader's
-   * last press.
+   * Toggles the reader's own pause, deliberately ignoring whether hover or
+   * focus happens to be holding the marquee at this instant.
    *
-   * Under `pauseOnHover` or `pauseOnFocus` the marquee is frequently already
-   * stopped by the time the control can be reached — the button sits inside the
-   * container, so hovering or tabbing to it is hovering or tabbing into the
-   * marquee. Toggling off a press-history flag would make the first press
-   * "pause" an already-stopped marquee: visibly nothing, and the label would
-   * then contradict itself.
+   * Reading the effective state here is unsafe, because pressing the button
+   * CREATES a transient pause before the press is handled. The button is a
+   * sibling of the track and therefore inside the container, so:
+   *
+   * - with `pauseOnFocus`, Chrome and Firefox focus a `<button>` on
+   *   `mousedown`, before `click` — the marquee is stopped by the time the
+   *   press arrives;
+   * - with `pauseOnHover`, touch browsers emulate `mouseenter` on the way into
+   *   the tap, and it sticks until the reader taps elsewhere.
+   *
+   * In both, a toggle reading {@link isPaused} would see "paused", resume, and
+   * leave the marquee moving — the opposite of what the reader just pressed,
+   * and needing a second press to take. Reading {@link explicitMotion} is
+   * immune, because no amount of hovering or focusing changes it.
+   *
+   * The consequence is that pressing "pause" on a marquee already stopped by
+   * hover looks like nothing happened. It did: the stop is now the reader's and
+   * survives the pointer leaving, which is the whole of WCAG 2.2.2.
    */
   private togglePauseFromButton(): void {
-    if (this.isPaused()) {
+    if (this.explicitMotion === 'paused') {
       this.resume();
       return;
     }
@@ -827,13 +839,20 @@ export class Marquee {
    * exactly that in CSS — but the library will not write the text itself, which
    * would clobber the integrator's copy and their translations.
    *
-   * It tracks the EFFECTIVE state, including a hover or focus pause, so the
-   * label can never tell the reader the marquee is moving while it sits still.
+   * It tracks the reader's OWN pause — {@link explicitMotion} — and not the
+   * effective state, because the label it drives has to describe what the next
+   * press will do, and the press acts on exactly this. Mirroring a hover or
+   * focus pause here would have the control read "Play" while the press
+   * underneath it still means "pause".
+   *
+   * So during a hover pause the marquee sits still while the button still
+   * reads "Pause". That is the honest label: pressing it is what makes the
+   * stop stick once the pointer moves away.
    */
   private syncPauseButtons(): void {
     if (!this.pauseButtons.length) return;
 
-    const paused = this.isPaused() ? 'true' : 'false';
+    const paused = this.explicitMotion === 'paused' ? 'true' : 'false';
     this.pauseButtons.forEach((button) => {
       button.element.setAttribute(PAUSED_STATE_ATTRIBUTE, paused);
     });
@@ -925,16 +944,23 @@ export class Marquee {
   /**
    * Resumes deliberately.
    *
-   * This outranks a hover or focus pause rather than clearing it, so pressing
-   * "play" moves a marquee the pointer is still resting on — the pause button
-   * lives inside the container, so the pointer always is. The override retires
-   * itself once the pointer leaves and focus moves out, and the next hover or
-   * tab-in pauses normally again.
+   * Records an override ONLY while hover or focus is actually holding the
+   * marquee, because that is the only case where plainly clearing the pause
+   * would not be enough: the pause button lives inside the container, so under
+   * `pauseOnHover` the pointer is always on the marquee at the moment of the
+   * press, and without the override the hover pause would re-assert instantly
+   * and the control would be dead.
+   *
+   * With nothing transient holding it there is nothing to outrank, and
+   * recording one anyway would linger — {@link expireExplicitRun} only runs on
+   * `mouseleave` and `focusout` — and swallow the next hover entirely. That is
+   * the regression this guard exists to prevent.
    *
    * No effect while reduced motion is active; the preference outranks this.
    */
   public resume(): void {
-    this.explicitMotion = 'running';
+    this.explicitMotion =
+      this.hoverInside || this.focusInside ? 'running' : null;
     this.syncPauseButtons();
   }
 

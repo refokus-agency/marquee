@@ -1063,7 +1063,7 @@ describe('Marquee - Pause Button', () => {
     marquee.destroy();
   });
 
-  it('should mirror a hover pause too, so the label cannot claim it is moving', async () => {
+  it('should report the reader own pause and not a transient hover one', async () => {
     installMatchMedia(false);
     const { container, pauseButton } = buildFixture();
 
@@ -1074,15 +1074,22 @@ describe('Marquee - Pause Button', () => {
 
     dispatchFrom(container, 'mouseenter');
 
-    // The attribute drives the integrator's label. A marquee sitting still
-    // under a hover pause with the control still reading "Pause" would be the
-    // label lying about the marquee.
+    // The marquee is stopped, but the attribute stays 'false' — it drives the
+    // integrator's label, and the label has to describe what the NEXT PRESS
+    // does. The press acts on the reader's own pause, so flipping the label to
+    // "Play" here would promise something the press underneath it does not do.
     expect(marquee.isPaused()).toBe(true);
+    expect(pauseButton.getAttribute('data-marquee-paused')).toBe('false');
+
+    pauseButton.click();
+
     expect(pauseButton.getAttribute('data-marquee-paused')).toBe('true');
 
+    // And the press is what makes the stop outlive the pointer.
     dispatchFrom(container, 'mouseleave');
 
-    expect(pauseButton.getAttribute('data-marquee-paused')).toBe('false');
+    expect(marquee.isPaused()).toBe(true);
+    expect(pauseButton.getAttribute('data-marquee-paused')).toBe('true');
 
     marquee.destroy();
   });
@@ -1487,13 +1494,15 @@ describe('Marquee - Explicit vs Transient Pause', () => {
     expect(marquee.isPaused()).toBe(true);
     expect(frameMovesTrack(track)).toBe(false);
 
-    // And the first press does the thing the label promises: the marquee is
-    // stopped, so pressing it runs.
-    pauseButton.click();
-    expect(frameMovesTrack(track)).toBe(true);
-
+    // The label still reads "Pause" here, because the stop belongs to the
+    // reader's focus rather than to them. The first press makes it theirs —
+    // nothing moves, and tabbing away will no longer start it.
     pauseButton.click();
     expect(frameMovesTrack(track)).toBe(false);
+    expect(pauseButton.getAttribute('data-marquee-paused')).toBe('true');
+
+    pauseButton.click();
+    expect(frameMovesTrack(track)).toBe(true);
 
     marquee.destroy();
   });
@@ -1578,9 +1587,15 @@ describe('Marquee - Explicit vs Transient Pause', () => {
     dispatchFrom(container, 'mouseenter');
     expect(frameMovesTrack(track)).toBe(false);
 
-    // The button is inside the container, so reaching it means hovering the
-    // marquee. If the press only cleared a press-history flag, the hover pause
-    // would immediately re-assert and the control would be permanently dead
+    // First press latches the reader's own pause onto a marquee the pointer
+    // was already holding still. Nothing moves, and that is correct: the stop
+    // is now theirs.
+    pauseButton.click();
+    expect(frameMovesTrack(track)).toBe(false);
+
+    // Second press releases it. The button is inside the container, so the
+    // pointer is necessarily still on the marquee — without an override the
+    // hover pause would re-assert instantly and the control would be dead
     // under pauseOnHover.
     pauseButton.click();
 
@@ -1600,6 +1615,7 @@ describe('Marquee - Explicit vs Transient Pause', () => {
     await marquee.ready;
 
     dispatchFrom(container, 'mouseenter');
+    pauseButton.click();
     pauseButton.click();
     expect(frameMovesTrack(track)).toBe(true);
 
@@ -1647,6 +1663,79 @@ describe('Marquee - Explicit vs Transient Pause', () => {
 
     expect(marquee.isPaused()).toBe(false);
     expect(frameMovesTrack(track)).toBe(true);
+
+    marquee.destroy();
+  });
+
+  it('should pause on the first mouse press when pauseOnFocus is on (#92)', async () => {
+    installMatchMedia(false);
+    const { track, pauseButton } = buildFixture();
+
+    const marquee = new Marquee(document.querySelector('.wrapper')!, {
+      pauseOnFocus: true,
+    });
+    await marquee.ready;
+
+    // Chrome and Firefox focus a <button> on mousedown, BEFORE click fires. So
+    // by the time the press is handled, the marquee is already stopped — by
+    // the press itself. A toggle reading the effective state would see
+    // "paused" and resume, and the reader's first click would do the opposite
+    // of what the label promised.
+    dispatchFrom(pauseButton, 'focusin');
+    expect(marquee.isPaused()).toBe(true);
+
+    pauseButton.click();
+
+    expect(marquee.isPaused()).toBe(true);
+    expect(frameMovesTrack(track)).toBe(false);
+    expect(pauseButton.getAttribute('data-marquee-paused')).toBe('true');
+
+    marquee.destroy();
+  });
+
+  it('should pause on the first tap when pauseOnHover is on (#92)', async () => {
+    installMatchMedia(false);
+    const { container, track, pauseButton } = buildFixture();
+
+    const marquee = new Marquee(document.querySelector('.wrapper')!, {
+      pauseOnHover: true,
+    });
+    await marquee.ready;
+
+    // Touch browsers emulate mouseenter on the tapped element's container
+    // before the click, and it sticks — no mouseleave arrives until the reader
+    // taps elsewhere. Same shape as the focus case: the press creates the very
+    // transient pause that would flip the toggle against it.
+    dispatchFrom(container, 'mouseenter');
+    expect(marquee.isPaused()).toBe(true);
+
+    pauseButton.click();
+
+    expect(marquee.isPaused()).toBe(true);
+    expect(frameMovesTrack(track)).toBe(false);
+
+    marquee.destroy();
+  });
+
+  it('should leave hover pausing intact after a resume() from outside (#92)', async () => {
+    installMatchMedia(false);
+    const { container, track } = buildFixture();
+
+    const marquee = new Marquee(document.querySelector('.wrapper')!, {
+      pauseOnHover: true,
+    });
+    await marquee.ready;
+
+    // Nothing transient is holding the marquee here, so there is nothing for a
+    // 'running' override to outrank. Recording one anyway would survive until
+    // the next mouseleave and swallow the hover that follows.
+    marquee.pause();
+    marquee.resume();
+
+    dispatchFrom(container, 'mouseenter');
+
+    expect(marquee.isPaused()).toBe(true);
+    expect(frameMovesTrack(track)).toBe(false);
 
     marquee.destroy();
   });

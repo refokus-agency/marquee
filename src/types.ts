@@ -43,8 +43,7 @@ export interface MarqueeOptions {
    *
    * The pause button counts as inside, so tabbing from a link towards the
    * control does not restart the marquee under the reader's hands. Pressing it
-   * then resumes, because the button toggles against what the marquee is
-   * actually doing rather than against its own press history.
+   * then makes that stop the reader's own, so it survives tabbing away.
    * @default false
    */
   pauseOnFocus?: boolean;

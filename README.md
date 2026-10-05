@@ -477,8 +477,16 @@ semantics, and `pauseButtonSelector` can match any element — so writing it ris
 double-signal against the label swap above: a control whose text already reads "Play" does not also
 need to announce "pressed".
 
-The attribute tracks the **effective** state, hover and focus pauses included. A marquee sitting
-still with its control still reading "Pause" would be the label lying about the marquee.
+The attribute tracks the reader's **own** pause, not the effective state — a hover or focus pause
+is deliberately not mirrored. The label it drives has to describe what the *next press* does, and
+the press acts on exactly this. So while hover is holding the marquee still, the control still reads
+"Pause": pressing it is what makes that stop survive the pointer moving away.
+
+This also keeps the control correct under the input methods that pause the marquee *by reaching for
+it*. The button is inside the container, so `mousedown` focusing it (Chrome, Firefox) or a tap's
+emulated `mouseenter` (touch) stops the marquee before the press is even handled. A control that
+toggled on the effective state would read that as "already paused", resume, and do the opposite of
+what the reader pressed.
 
 #### Explicit intent outranks hover and focus
 
@@ -494,6 +502,14 @@ press only cleared its own flag, the hover pause would immediately re-assert and
 permanently dead in that configuration. So an explicit resume outranks hover and focus rather than
 clearing them, and retires itself once the pointer leaves and focus moves out — after which the next
 hover or tab-in pauses normally again.
+
+That override is recorded **only** while hover or focus is actually holding the marquee. With
+nothing transient to outrank there is nothing to override, and recording one anyway would linger —
+it is only retired on `mouseleave` and `focusout` — and swallow the next hover entirely.
+
+One consequence worth knowing: pressing pause on a marquee already stopped by hover or focus looks
+like nothing happened. It did — the stop is now the reader's, and it outlives the pointer. Releasing
+it takes a second press.
 
 The upshot for `isPaused()`: it reports whether the marquee is moving, from any cause — an explicit
 pause, a hover or focus pause, or reduced motion.
@@ -548,8 +564,7 @@ await initMarquee({ pauseOnFocus: true });
 
 The pause button counts as inside the container, because it is. Tabbing from a link towards the
 control therefore does not restart the marquee under the reader's hands; the press that follows
-resumes it, since the button toggles against what the marquee is doing rather than against its own
-press history.
+makes that stop the reader's own, so it survives tabbing back out.
 
 Two things limit how far this reaches on its own, which is why it is not a substitute for the
 button. A running marquee's container is `overflow: hidden` and not a scroll container, so it is not
