@@ -787,19 +787,10 @@
     const reducedMotion = installReducedMotionSwitch();
 
     /*
-     * One initMarquee() call per panel that reads an instance, rather than a
-     * single page-wide call.
-     *
-     * A marquee's `ready` waits for its container to enter the viewport (the
-     * library lazy-initializes below-fold marquees), and initMarquee() resolves
-     * only once EVERY marquee it matched is ready. A single page-wide call
-     * therefore hands back its instances only after the reader has scrolled to
-     * the very bottom of the page — which would leave the controls of a marquee
-     * already on screen inert, and the section 1 clone count stuck on
-     * "calculating…", until then.
-     *
-     * The selectors are disjoint, so no element is initialized twice, and
-     * initMarquee() still reads every data attribute exactly as before.
+     * initMarquee() returns its instances synchronously; each one's `ready`
+     * waits for its container to enter the viewport (lazy init). Await only
+     * the instances a panel needs, never all of them, or a below-fold marquee
+     * would keep every on-screen control inert until the reader scrolled to it.
      */
     const FIRST = '#marquee-1';
     const CONTROLLED = '#controlled-marquee';
@@ -807,14 +798,15 @@
     const REST =
       `[data-marquee]:not(${FIRST}):not(${CONTROLLED}):not(${HONORING})`;
 
-    const initOne = (selector) =>
-      initMarquee({ wrapperSelector: selector }).then(([instance]) => instance);
+    const initOne = async (selector) => {
+      const [instance] = initMarquee({ wrapperSelector: selector });
+      await instance?.ready;
+      return instance;
+    };
 
     // Sections 5 (pauseOnHover) and 6 (draggable) are handled via their data
     // attributes — nothing here needs their instances.
-    initMarquee({ wrapperSelector: REST }).then((instances) => {
-      console.log('Marquee instances initialized (unattended):', instances.length);
-    });
+    const unattended = initMarquee({ wrapperSelector: REST });    console.log('Marquee instances created (unattended):', unattended.length);
 
     /* ─── Section 1: clone count ─────────────────────────────────────────── */
 

@@ -189,7 +189,30 @@ The container needs a **fixed height**. The track stacks items in a column.
 import { initMarquee } from '@refokus-agency/marquee';
 
 // Reads direction/speed/draggable/pauseOnHover from data attributes
-const marquees = await initMarquee();
+const marquees = initMarquee();
+```
+
+`initMarquee()` returns the instances **synchronously**. Each marquee lazy-initializes
+when its container enters the viewport, so it is not ready yet. Await only the ones
+you need:
+
+```typescript
+await marquees[0]?.ready; // resolves once that marquee has been seen and measured
+marquees[0]?.pause();
+```
+
+Do not `await Promise.all(marquees.map(m => m.ready))` on a long page: it waits for
+every marquee to be scrolled into view.
+
+### Tearing Down
+
+Call `destroy()` on any instance at any time, including marquees that never entered
+the viewport. A destroyed marquee will not initialize if it scrolls into view later.
+
+```typescript
+const marquees = initMarquee();
+// e.g. when an SPA view unmounts
+marquees.forEach((m) => m.destroy());
 ```
 
 ### With Options
@@ -197,7 +220,7 @@ const marquees = await initMarquee();
 ```typescript
 import { initMarquee } from '@refokus-agency/marquee';
 
-const marquees = await initMarquee({
+const marquees = initMarquee({
   speed: 2,               // Speed multiplier (default: 1)
   direction: 'rtl',       // 'ltr' | 'rtl' | 'ttb' | 'btt' (default: 'ltr')
   draggable: true,        // Enable drag/touch (default: false)
@@ -209,7 +232,7 @@ const marquees = await initMarquee({
 ### Custom Selector
 
 ```typescript
-const marquees = await initMarquee({
+const marquees = initMarquee({
   wrapperSelector: '.my-marquee',
 });
 ```
@@ -253,7 +276,8 @@ const marquee = await createMarquee(element, { direction: 'ttb' });
 ### Instance Control
 
 ```typescript
-const [marquee] = await initMarquee();
+const [marquee] = initMarquee();
+await marquee.ready;
 
 marquee.pause();
 marquee.resume();
@@ -456,7 +480,7 @@ To animate regardless of the preference, opt out:
 const marquee = await createMarquee('#my-marquee', { respectReducedMotion: false });
 
 // Or for every marquee on the page
-await initMarquee({ respectReducedMotion: false });
+initMarquee({ respectReducedMotion: false });
 ```
 
 ```html
@@ -592,7 +616,7 @@ In **Project Settings → Custom Code**, paste before the `</body>` tag:
 <script type="module">
   import { initMarquee } from 'https://cdn.jsdelivr.net/npm/@refokus-agency/marquee@X.Y.Z/+esm';
 
-  await initMarquee();
+  initMarquee();
 </script>
 ```
 
@@ -638,7 +662,7 @@ global is re-exported through a tiny inline shim module:
 <script type="module">
   import { initMarquee } from 'https://cdn.jsdelivr.net/npm/@refokus-agency/marquee@X.Y.Z/dist/marquee.browser.js';
 
-  await initMarquee();
+  initMarquee();
 </script>
 ```
 
@@ -708,7 +732,8 @@ Additional options for `initMarquee()`:
 
 ```typescript
 // Initialize all matching elements on the page
-initMarquee(config?: MarqueeConfig): Promise<Marquee[]>
+// Returns synchronously; await `marquee.ready` per instance as needed
+initMarquee(config?: MarqueeConfig): Marquee[]
 
 // Create a single instance by element or selector
 createMarquee(element: HTMLElement | string, options?: MarqueeOptions): Promise<Marquee | null>
