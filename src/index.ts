@@ -28,17 +28,25 @@ const DEFAULT_CONFIG: Required<MarqueeConfig> = {
 };
 
 /**
- * Initialize marquee on all matching elements. Waits for images to load.
+ * Initialize marquee on all matching elements.
+ *
+ * Returns the instances synchronously, before any of them is ready. Each one
+ * defers its measuring until its container enters the viewport, so awaiting
+ * every marquee would hang on one that is never scrolled to. Await only the
+ * ones you need via `marquee.ready`, and call `destroy()` on any of them at
+ * any time, including ones that never entered the viewport.
+ *
+ * Elements whose construction throws are skipped with a warning, and an
+ * initialization failure is logged rather than left as an unhandled rejection.
  *
  * @example
  * ```typescript
- * const marquees = await initMarquee({ speed: 2, direction: 'rtl' });
- * marquees.forEach(m => m.pause());
+ * const marquees = initMarquee({ speed: 2, direction: 'rtl' });
+ * await marquees[0]?.ready;
+ * marquees[0]?.pause();
  * ```
  */
-export async function initMarquee(
-  config: MarqueeConfig = {},
-): Promise<Marquee[]> {
+export function initMarquee(config: MarqueeConfig = {}): Marquee[] {
   const mergedConfig = { ...DEFAULT_CONFIG, ...config };
   const {
     wrapperSelector,
@@ -51,9 +59,7 @@ export async function initMarquee(
   } = mergedConfig;
 
   const wrappers = document.querySelectorAll<HTMLElement>(wrapperSelector);
-  if (!wrappers.length) return [];
-
-  const promises: Promise<Marquee | null>[] = [];
+  const instances: Marquee[] = [];
 
   wrappers.forEach((wrapper) => {
     // Skip clones and already-initialized elements
@@ -88,16 +94,18 @@ export async function initMarquee(
           : defaultOptions.respectReducedMotion,
     };
 
-    const promise = Marquee.create(wrapper, options).catch((error) => {
+    try {
+      const instance = new Marquee(wrapper, options);
+      instance.ready.catch((error) => {
+        console.warn('Failed to initialize marquee:', error);
+      });
+      instances.push(instance);
+    } catch (error) {
       console.warn('Failed to initialize marquee:', error);
-      return null;
-    });
-
-    promises.push(promise);
+    }
   });
 
-  const results = await Promise.all(promises);
-  return results.filter((instance): instance is Marquee => instance !== null);
+  return instances;
 }
 
 /**
