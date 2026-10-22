@@ -145,6 +145,8 @@ interface MarqueeFixture {
   container: HTMLElement;
   track: HTMLElement;
   wrapper: HTMLElement;
+  /** The pause button, a sibling of the track as the README requires. */
+  pauseButton: HTMLButtonElement;
 }
 
 const WRAPPER_SIZE = 100;
@@ -173,6 +175,10 @@ function advanceGlobalTimeline(seconds: number): void {
  * 0 and updateClones() compute a NaN clone count — so no clones are ever
  * created. Faking the two dimensions the marquee actually measures gives the
  * clone and wrap logic a realistic layout to work against.
+ *
+ * The pause button is part of the baseline markup: it is what the library asks
+ * for, and leaving it out would have every fixture-based test trip the
+ * missing-button warning.
  */
 function buildFixture(): MarqueeFixture {
   document.body.innerHTML = `
@@ -182,12 +188,16 @@ function buildFixture(): MarqueeFixture {
           <a href="#one" data-marquee-item>One</a>
         </div>
       </div>
+      <button type="button" data-marquee-pause-button>Pause</button>
     </div>
   `;
 
   const container = document.querySelector<HTMLElement>('.container')!;
   const track = document.querySelector<HTMLElement>('.track')!;
   const wrapper = document.querySelector<HTMLElement>('.wrapper')!;
+  const pauseButton = document.querySelector<HTMLButtonElement>(
+    '[data-marquee-pause-button]',
+  )!;
 
   Object.defineProperty(container, 'clientWidth', {
     value: CONTAINER_SIZE,
@@ -200,54 +210,121 @@ function buildFixture(): MarqueeFixture {
   wrapper.getBoundingClientRect = () =>
     ({ width: WRAPPER_SIZE, height: WRAPPER_SIZE }) as DOMRect;
 
-  return { container, track, wrapper };
+  return { container, track, wrapper, pauseButton };
+}
+
+/**
+ * Ticker registrations recorded in call order. Populated by
+ * {@link installTickerLog}, which every suite that needs it installs in its own
+ * `beforeEach`.
+ */
+let tickerLog: { type: 'add' | 'remove'; callback: unknown }[] = [];
+
+/**
+ * Records every `gsap.ticker` registration for the duration of one test.
+ *
+ * Whether the marquee is advancing is only observable through ticker
+ * registration and the transform a frame writes — asserting real motion is not
+ * feasible without a browser. This is the one white-box seam in the suite.
+ */
+function installTickerLog(): void {
+  tickerLog = [];
+
+  const originalAdd = gsap.ticker.add.bind(gsap.ticker);
+  const originalRemove = gsap.ticker.remove.bind(gsap.ticker);
+
+  // Logged after the call-through so add()'s internal de-dupe remove() is
+  // recorded first and cannot cancel the registration it precedes.
+  vi.spyOn(gsap.ticker, 'add').mockImplementation((callback, ...rest) => {
+    const result = originalAdd(callback, ...rest);
+    tickerLog.push({ type: 'add', callback });
+    return result;
+  });
+  vi.spyOn(gsap.ticker, 'remove').mockImplementation((callback, ...rest) => {
+    tickerLog.push({ type: 'remove', callback });
+    return originalRemove(callback, ...rest);
+  });
+}
+
+/**
+ * The ticker callbacks still registered.
+ *
+ * Replayed in order rather than diffed by call count, because
+ * `gsap.ticker.add()` de-dupes by calling `remove()` on its way in: a plain
+ * adds-minus-removes count nets every registration to zero.
+ */
+function liveTickerCallbacks(): unknown[] {
+  const live = new Set<unknown>();
+
+  tickerLog.forEach(({ type, callback }) => {
+    if (type === 'add') live.add(callback);
+    else live.delete(callback);
+  });
+
+  return Array.from(live);
+}
+
+function observersOn(track: HTMLElement): Observer[] {
+  return Observer.getAll().filter((observer) => observer.target === track);
+}
+
+/** Runs one marquee frame by hand, since jsdom never runs the real ticker. */
+function advanceOneFrame(): void {
+  const [advanceFrame] = liveTickerCallbacks() as TickerCallback[];
+  advanceFrame(0, FRAME_DELTA_MS);
+}
+
+/** Comfortably past the default `dragEase` of 0.5s. */
+const TWEEN_SETTLE_SECONDS = 1;
+
+/**
+ * Whether a hand-run frame actually moves the track.
+ *
+ * The paused check has to be behavioural rather than a read of `isPaused()`:
+ * the whole point of separating explicit from transient pausing is what the
+ * TICKER does, and a getter could agree with itself while the marquee kept
+ * sliding.
+ *
+ * Both reads are taken with the timeline stepped past the tween's duration.
+ * The ticker hands `moveTo` a target rather than writing the transform, and
+ * jsdom never advances the global timeline on its own — so a marquee that is
+ * very much moving renders nothing between two bare reads.
+ */
+function frameMovesTrack(track: HTMLElement): boolean {
+  advanceGlobalTimeline(TWEEN_SETTLE_SECONDS);
+  const before = Number(gsap.getProperty(track, 'x'));
+
+  advanceOneFrame();
+  advanceGlobalTimeline(TWEEN_SETTLE_SECONDS);
+
+  return Number(gsap.getProperty(track, 'x')) !== before;
+}
+
+/** Dispatches the bubbling event the marquee listens for, from `target`. */
+function dispatchFrom(target: HTMLElement, type: string): void {
+  target.dispatchEvent(new Event(type, { bubbles: true }));
+}
+
+/**
+ * A bubbling `focusout` carrying `relatedTarget` — where focus is going.
+ *
+ * jsdom does not populate `relatedTarget` from real focus moves, and the
+ * marquee reads it to tell a hop between two descendants apart from focus
+ * actually leaving the container.
+ */
+function dispatchFocusOut(
+  target: HTMLElement,
+  relatedTarget: HTMLElement | null,
+): void {
+  target.dispatchEvent(
+    new FocusEvent('focusout', { bubbles: true, relatedTarget }),
+  );
 }
 
 describe('Marquee - Reduced Motion', () => {
-  let tickerLog: { type: 'add' | 'remove'; callback: unknown }[];
-
-  /**
-   * Whether the marquee is advancing is only observable through ticker
-   * registration — asserting real motion is not feasible without a browser.
-   * This is the one white-box seam in the suite.
-   *
-   * Replayed in order rather than diffed by call count, because
-   * `gsap.ticker.add()` de-dupes by calling `remove()` on its way in: a plain
-   * adds-minus-removes count nets every registration to zero.
-   */
-  function liveTickerCallbacks(): unknown[] {
-    const live = new Set<unknown>();
-
-    tickerLog.forEach(({ type, callback }) => {
-      if (type === 'add') live.add(callback);
-      else live.delete(callback);
-    });
-
-    return Array.from(live);
-  }
-
-  function observersOn(track: HTMLElement): Observer[] {
-    return Observer.getAll().filter((observer) => observer.target === track);
-  }
-
   beforeEach(() => {
     document.body.innerHTML = '';
-    tickerLog = [];
-
-    const originalAdd = gsap.ticker.add.bind(gsap.ticker);
-    const originalRemove = gsap.ticker.remove.bind(gsap.ticker);
-
-    // Logged after the call-through so add()'s internal de-dupe remove() is
-    // recorded first and cannot cancel the registration it precedes.
-    vi.spyOn(gsap.ticker, 'add').mockImplementation((callback, ...rest) => {
-      const result = originalAdd(callback, ...rest);
-      tickerLog.push({ type: 'add', callback });
-      return result;
-    });
-    vi.spyOn(gsap.ticker, 'remove').mockImplementation((callback, ...rest) => {
-      tickerLog.push({ type: 'remove', callback });
-      return originalRemove(callback, ...rest);
-    });
+    installTickerLog();
   });
 
   afterEach(() => {
@@ -936,6 +1013,753 @@ describe('Marquee - Clone Accessibility', () => {
     });
 
     marquee.destroy();
+  });
+});
+
+describe('Marquee - Pause Button', () => {
+  beforeEach(() => {
+    document.body.innerHTML = '';
+    installTickerLog();
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    document.body.innerHTML = '';
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  it('should stop the marquee on the first press and start it again on the second', async () => {
+    installMatchMedia(false);
+    const { track, pauseButton } = buildFixture();
+
+    const marquee = new Marquee(document.querySelector('.wrapper')!);
+    await marquee.ready;
+    expect(frameMovesTrack(track)).toBe(true);
+
+    pauseButton.click();
+
+    expect(marquee.isPaused()).toBe(true);
+    expect(frameMovesTrack(track)).toBe(false);
+
+    pauseButton.click();
+
+    expect(marquee.isPaused()).toBe(false);
+    expect(frameMovesTrack(track)).toBe(true);
+
+    marquee.destroy();
+  });
+
+  it('should mirror the paused state onto the button', async () => {
+    installMatchMedia(false);
+    const { pauseButton } = buildFixture();
+
+    const marquee = new Marquee(document.querySelector('.wrapper')!);
+    await marquee.ready;
+
+    expect(pauseButton.getAttribute('data-marquee-paused')).toBe('false');
+
+    pauseButton.click();
+    expect(pauseButton.getAttribute('data-marquee-paused')).toBe('true');
+
+    // The API and the button drive the same state, so the control has to follow
+    // a programmatic resume too.
+    marquee.resume();
+    expect(pauseButton.getAttribute('data-marquee-paused')).toBe('false');
+
+    marquee.destroy();
+  });
+
+  it('should report the reader own pause and not a transient hover one', async () => {
+    installMatchMedia(false);
+    const { container, pauseButton } = buildFixture();
+
+    const marquee = new Marquee(document.querySelector('.wrapper')!, {
+      pauseOnHover: true,
+    });
+    await marquee.ready;
+
+    dispatchFrom(container, 'mouseenter');
+
+    // The marquee is stopped, but the attribute stays 'false' — it drives the
+    // integrator's label, and the label has to describe what the NEXT PRESS
+    // does. The press acts on the reader's own pause, so flipping the label to
+    // "Play" here would promise something the press underneath it does not do.
+    expect(marquee.isPaused()).toBe(true);
+    expect(pauseButton.getAttribute('data-marquee-paused')).toBe('false');
+
+    pauseButton.click();
+
+    expect(pauseButton.getAttribute('data-marquee-paused')).toBe('true');
+
+    // And the press is what makes the stop outlive the pointer.
+    dispatchFrom(container, 'mouseleave');
+
+    expect(marquee.isPaused()).toBe(true);
+    expect(pauseButton.getAttribute('data-marquee-paused')).toBe('true');
+
+    marquee.destroy();
+  });
+
+  it('should bind every button in the container and keep them in sync', async () => {
+    installMatchMedia(false);
+    const { container, track } = buildFixture();
+
+    const second = document.createElement('button');
+    second.setAttribute('data-marquee-pause-button', '');
+    container.appendChild(second);
+
+    const marquee = new Marquee(document.querySelector('.wrapper')!);
+    await marquee.ready;
+
+    const [first] = container.querySelectorAll<HTMLButtonElement>(
+      '[data-marquee-pause-button]',
+    );
+
+    second.click();
+
+    expect(frameMovesTrack(track)).toBe(false);
+    expect(first!.getAttribute('data-marquee-paused')).toBe('true');
+    expect(second.getAttribute('data-marquee-paused')).toBe('true');
+
+    marquee.destroy();
+  });
+
+  it('should resolve the selector against its own container, not the document', async () => {
+    installMatchMedia(false);
+    document.body.innerHTML = `
+      <div class="container-a">
+        <div class="track-a"><div class="wrapper-a" data-marquee></div></div>
+      </div>
+      <div class="container-b">
+        <div class="track-b"><div class="wrapper-b" data-marquee></div></div>
+        <button type="button" data-marquee-pause-button>Pause B</button>
+      </div>
+    `;
+
+    const wrapperA = document.querySelector<HTMLElement>('.wrapper-a')!;
+    const wrapperB = document.querySelector<HTMLElement>('.wrapper-b')!;
+    const buttonB = document.querySelector<HTMLButtonElement>(
+      '[data-marquee-pause-button]',
+    )!;
+
+    const marqueeA = new Marquee(wrapperA);
+    const marqueeB = new Marquee(wrapperB);
+    await Promise.all([marqueeA.ready, marqueeB.ready]);
+
+    buttonB.click();
+
+    expect(marqueeB.isPaused()).toBe(true);
+    expect(marqueeA.isPaused()).toBe(false);
+
+    marqueeA.destroy();
+    marqueeB.destroy();
+  });
+
+  it('should refuse a button inside the wrapper, where cloning would duplicate it', async () => {
+    installMatchMedia(false);
+    const { track, wrapper } = buildFixture();
+    document.querySelector('[data-marquee-pause-button]')!.remove();
+
+    const inside = document.createElement('button');
+    inside.setAttribute('data-marquee-pause-button', '');
+    wrapper.appendChild(inside);
+
+    const marquee = new Marquee(wrapper);
+    await marquee.ready;
+
+    inside.click();
+
+    expect(marquee.isPaused()).toBe(false);
+    expect(frameMovesTrack(track)).toBe(true);
+    expect(console.warn).toHaveBeenCalledWith(
+      expect.stringContaining('inside the track'),
+      expect.anything(),
+    );
+
+    marquee.destroy();
+  });
+
+  it('should warn when nothing matches the selector', async () => {
+    installMatchMedia(false);
+    const { wrapper } = buildFixture();
+    document.querySelector('[data-marquee-pause-button]')!.remove();
+
+    const marquee = new Marquee(wrapper);
+    await marquee.ready;
+
+    expect(console.warn).toHaveBeenCalledWith(
+      expect.stringContaining('no pause button matching'),
+      expect.anything(),
+    );
+
+    marquee.destroy();
+  });
+
+  it('should neither bind nor warn when pauseButton is false', async () => {
+    installMatchMedia(false);
+    const { track, wrapper, pauseButton } = buildFixture();
+
+    const marquee = new Marquee(wrapper, { pauseButton: false });
+    await marquee.ready;
+
+    pauseButton.click();
+
+    expect(frameMovesTrack(track)).toBe(true);
+    expect(pauseButton.hasAttribute('data-marquee-paused')).toBe(false);
+    expect(console.warn).not.toHaveBeenCalled();
+
+    marquee.destroy();
+  });
+
+  it('should honor a custom pauseButtonSelector', async () => {
+    installMatchMedia(false);
+    const { container, track, wrapper } = buildFixture();
+    document.querySelector('[data-marquee-pause-button]')!.remove();
+
+    const custom = document.createElement('button');
+    custom.className = 'stop';
+    container.appendChild(custom);
+
+    const marquee = new Marquee(wrapper, { pauseButtonSelector: '.stop' });
+    await marquee.ready;
+
+    custom.click();
+
+    expect(frameMovesTrack(track)).toBe(false);
+    expect(console.warn).not.toHaveBeenCalled();
+
+    marquee.destroy();
+  });
+
+  it('should hide the button while reduced motion is applied', async () => {
+    const media = installMatchMedia(false);
+    const { pauseButton } = buildFixture();
+
+    const marquee = new Marquee(document.querySelector('.wrapper')!);
+    await marquee.ready;
+    expect(pauseButton.style.display).toBe('');
+
+    await media.flip(true);
+
+    expect(pauseButton.style.display).toBe('none');
+
+    marquee.destroy();
+  });
+
+  it('should hide the button when reduced motion is already active at init', async () => {
+    installMatchMedia(true);
+    const { pauseButton } = buildFixture();
+
+    const marquee = new Marquee(document.querySelector('.wrapper')!);
+    await marquee.ready;
+
+    expect(pauseButton.style.display).toBe('none');
+
+    marquee.destroy();
+  });
+
+  it('should keep the button when the preference is not honored', async () => {
+    installMatchMedia(true);
+    const { pauseButton } = buildFixture();
+
+    const marquee = new Marquee(document.querySelector('.wrapper')!, {
+      respectReducedMotion: false,
+    });
+    await marquee.ready;
+
+    // The marquee is moving, so the button is the only mechanism there is.
+    expect(pauseButton.style.display).toBe('');
+
+    marquee.destroy();
+  });
+
+  it('should restore an inline display the integrator had already set', async () => {
+    const media = installMatchMedia(false);
+    const { pauseButton } = buildFixture();
+    pauseButton.style.display = 'inline-flex';
+
+    const marquee = new Marquee(document.querySelector('.wrapper')!);
+    await marquee.ready;
+
+    await media.flip(true);
+    expect(pauseButton.style.display).toBe('none');
+
+    await media.flip(false);
+
+    expect(pauseButton.style.display).toBe('inline-flex');
+
+    marquee.destroy();
+  });
+
+  it('should clear the display declaration when none was set inline', async () => {
+    const media = installMatchMedia(true);
+    const { pauseButton } = buildFixture();
+
+    const marquee = new Marquee(document.querySelector('.wrapper')!);
+    await marquee.ready;
+    expect(pauseButton.style.display).toBe('none');
+
+    await media.flip(false);
+
+    expect(pauseButton.getAttribute('style')).toBe('');
+
+    marquee.destroy();
+  });
+
+  it('should hand the button back untouched on destroy', async () => {
+    installMatchMedia(true);
+    const { track, wrapper, pauseButton } = buildFixture();
+
+    const marquee = new Marquee(wrapper);
+    await marquee.ready;
+    expect(pauseButton.style.display).toBe('none');
+
+    marquee.destroy();
+
+    expect(pauseButton.getAttribute('style')).toBe('');
+    expect(pauseButton.hasAttribute('data-marquee-paused')).toBe(false);
+
+    // The listener is off: a click after destroy touches nothing.
+    pauseButton.click();
+    expect(Number(gsap.getProperty(track, 'x'))).toBe(0);
+  });
+
+  it('should restore a state attribute the integrator had set on destroy', async () => {
+    installMatchMedia(false);
+    const { wrapper, pauseButton } = buildFixture();
+    pauseButton.setAttribute('data-marquee-paused', 'whatever');
+
+    const marquee = new Marquee(wrapper);
+    await marquee.ready;
+    expect(pauseButton.getAttribute('data-marquee-paused')).toBe('false');
+
+    marquee.destroy();
+
+    expect(pauseButton.getAttribute('data-marquee-paused')).toBe('whatever');
+  });
+
+  it('should survive an invalid pauseButtonSelector without losing the marquee', async () => {
+    installMatchMedia(false);
+    const { track, wrapper } = buildFixture();
+
+    // querySelectorAll throws on this. Unguarded, the throw would reject
+    // ready(), skip the reduced-motion gate and the resize handler, and leave
+    // data-marquee-initialized behind so a later initMarquee() skips the
+    // element — a typo in an optional accessory taking out the core feature.
+    const marquee = new Marquee(wrapper, {
+      pauseButtonSelector: 'button:pause',
+    });
+    await marquee.ready;
+
+    expect(marquee.isReady()).toBe(true);
+    expect(frameMovesTrack(track)).toBe(true);
+    expect(console.warn).toHaveBeenCalledWith(
+      expect.stringContaining('not a valid CSS selector'),
+      expect.anything(),
+    );
+
+    marquee.destroy();
+  });
+
+  it('should warn when the pause control is not keyboard operable', async () => {
+    installMatchMedia(false);
+    const { container, track, wrapper } = buildFixture();
+    document.querySelector('[data-marquee-pause-button]')!.remove();
+
+    const div = document.createElement('div');
+    div.setAttribute('data-marquee-pause-button', '');
+    container.appendChild(div);
+
+    const marquee = new Marquee(wrapper);
+    await marquee.ready;
+
+    expect(console.warn).toHaveBeenCalledWith(
+      expect.stringContaining('neither a <button> nor role="button"'),
+      div,
+    );
+
+    // Bound anyway — a click listener on a div still works for pointer users,
+    // and the element is the integrator's call.
+    div.click();
+    expect(frameMovesTrack(track)).toBe(false);
+
+    marquee.destroy();
+  });
+
+  it('should not warn about a role="button" control', async () => {
+    installMatchMedia(false);
+    const { container, wrapper } = buildFixture();
+    document.querySelector('[data-marquee-pause-button]')!.remove();
+
+    const span = document.createElement('span');
+    span.setAttribute('data-marquee-pause-button', '');
+    span.setAttribute('role', 'button');
+    span.tabIndex = 0;
+    container.appendChild(span);
+
+    const marquee = new Marquee(wrapper);
+    await marquee.ready;
+
+    expect(console.warn).not.toHaveBeenCalled();
+
+    marquee.destroy();
+  });
+});
+
+describe('Marquee - Explicit vs Transient Pause', () => {
+  beforeEach(() => {
+    document.body.innerHTML = '';
+    installTickerLog();
+  });
+
+  afterEach(() => {
+    document.body.innerHTML = '';
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  it('should not let mouseleave resume a marquee the button paused', async () => {
+    installMatchMedia(false);
+    const { container, track, pauseButton } = buildFixture();
+
+    const marquee = new Marquee(document.querySelector('.wrapper')!, {
+      pauseOnHover: true,
+    });
+    await marquee.ready;
+
+    pauseButton.click();
+    dispatchFrom(container, 'mouseenter');
+    dispatchFrom(container, 'mouseleave');
+
+    expect(marquee.isPaused()).toBe(true);
+    expect(frameMovesTrack(track)).toBe(false);
+
+    marquee.destroy();
+  });
+
+  it('should not let mouseleave resume a marquee pause() stopped', async () => {
+    installMatchMedia(false);
+    const { container, track } = buildFixture();
+
+    const marquee = new Marquee(document.querySelector('.wrapper')!, {
+      pauseOnHover: true,
+    });
+    await marquee.ready;
+
+    marquee.pause();
+    dispatchFrom(container, 'mouseleave');
+
+    expect(frameMovesTrack(track)).toBe(false);
+
+    marquee.destroy();
+  });
+
+  it('should pause while focus is inside and resume when it leaves', async () => {
+    installMatchMedia(false);
+    const { track } = buildFixture();
+    const link = document.querySelector<HTMLElement>('.wrapper a')!;
+
+    const marquee = new Marquee(document.querySelector('.wrapper')!, {
+      pauseOnFocus: true,
+    });
+    await marquee.ready;
+
+    dispatchFrom(link, 'focusin');
+
+    expect(marquee.isPaused()).toBe(true);
+    expect(frameMovesTrack(track)).toBe(false);
+
+    dispatchFocusOut(link, null);
+
+    expect(marquee.isPaused()).toBe(false);
+    expect(frameMovesTrack(track)).toBe(true);
+
+    marquee.destroy();
+  });
+
+  it('should stay paused when focus moves from a link to the pause button', async () => {
+    installMatchMedia(false);
+    const { track, pauseButton } = buildFixture();
+    const link = document.querySelector<HTMLElement>('.wrapper a')!;
+
+    const marquee = new Marquee(document.querySelector('.wrapper')!, {
+      pauseOnFocus: true,
+    });
+    await marquee.ready;
+
+    dispatchFrom(link, 'focusin');
+    expect(frameMovesTrack(track)).toBe(false);
+
+    // Tabbing onward to the pause control. focusout fires on the link with the
+    // button as relatedTarget — both are inside the container, so focus never
+    // actually left and the marquee must not restart under the reader's hands
+    // at the exact moment they reach for the control.
+    dispatchFocusOut(link, pauseButton);
+    dispatchFrom(pauseButton, 'focusin');
+
+    expect(marquee.isPaused()).toBe(true);
+    expect(frameMovesTrack(track)).toBe(false);
+
+    // The label still reads "Pause" here, because the stop belongs to the
+    // reader's focus rather than to them. The first press makes it theirs —
+    // nothing moves, and tabbing away will no longer start it.
+    pauseButton.click();
+    expect(frameMovesTrack(track)).toBe(false);
+    expect(pauseButton.getAttribute('data-marquee-paused')).toBe('true');
+
+    pauseButton.click();
+    expect(frameMovesTrack(track)).toBe(true);
+
+    marquee.destroy();
+  });
+
+  it('should resume once focus actually leaves the container', async () => {
+    installMatchMedia(false);
+    const { track, container } = buildFixture();
+    const link = document.querySelector<HTMLElement>('.wrapper a')!;
+
+    const outside = document.createElement('a');
+    outside.href = '#away';
+    document.body.appendChild(outside);
+
+    const marquee = new Marquee(document.querySelector('.wrapper')!, {
+      pauseOnFocus: true,
+    });
+    await marquee.ready;
+
+    dispatchFrom(link, 'focusin');
+    expect(frameMovesTrack(track)).toBe(false);
+
+    dispatchFocusOut(link, outside);
+
+    expect(container.contains(outside)).toBe(false);
+    expect(marquee.isPaused()).toBe(false);
+    expect(frameMovesTrack(track)).toBe(true);
+
+    marquee.destroy();
+  });
+
+  it('should treat a focusout with no relatedTarget as focus leaving', async () => {
+    installMatchMedia(false);
+    const { track } = buildFixture();
+    const link = document.querySelector<HTMLElement>('.wrapper a')!;
+
+    const marquee = new Marquee(document.querySelector('.wrapper')!, {
+      pauseOnFocus: true,
+    });
+    await marquee.ready;
+
+    dispatchFrom(link, 'focusin');
+    expect(frameMovesTrack(track)).toBe(false);
+
+    // Clicking away to nothing focusable, or tabbing out of the document
+    // entirely, leaves relatedTarget null.
+    dispatchFocusOut(link, null);
+
+    expect(frameMovesTrack(track)).toBe(true);
+
+    marquee.destroy();
+  });
+
+  it('should not let focusout resume a marquee the button paused', async () => {
+    installMatchMedia(false);
+    const { track, pauseButton } = buildFixture();
+    const link = document.querySelector<HTMLElement>('.wrapper a')!;
+
+    const marquee = new Marquee(document.querySelector('.wrapper')!, {
+      pauseOnFocus: true,
+    });
+    await marquee.ready;
+
+    pauseButton.click();
+    dispatchFrom(link, 'focusin');
+    dispatchFocusOut(link, null);
+
+    expect(marquee.isPaused()).toBe(true);
+    expect(frameMovesTrack(track)).toBe(false);
+
+    marquee.destroy();
+  });
+
+  it('should run while the pointer rests on the marquee after an explicit resume', async () => {
+    installMatchMedia(false);
+    const { container, track, pauseButton } = buildFixture();
+
+    const marquee = new Marquee(document.querySelector('.wrapper')!, {
+      pauseOnHover: true,
+    });
+    await marquee.ready;
+
+    dispatchFrom(container, 'mouseenter');
+    expect(frameMovesTrack(track)).toBe(false);
+
+    // First press latches the reader's own pause onto a marquee the pointer
+    // was already holding still. Nothing moves, and that is correct: the stop
+    // is now theirs.
+    pauseButton.click();
+    expect(frameMovesTrack(track)).toBe(false);
+
+    // Second press releases it. The button is inside the container, so the
+    // pointer is necessarily still on the marquee — without an override the
+    // hover pause would re-assert instantly and the control would be dead
+    // under pauseOnHover.
+    pauseButton.click();
+
+    expect(marquee.isPaused()).toBe(false);
+    expect(frameMovesTrack(track)).toBe(true);
+
+    marquee.destroy();
+  });
+
+  it('should let hover pause again once the pointer has left and come back', async () => {
+    installMatchMedia(false);
+    const { container, track, pauseButton } = buildFixture();
+
+    const marquee = new Marquee(document.querySelector('.wrapper')!, {
+      pauseOnHover: true,
+    });
+    await marquee.ready;
+
+    dispatchFrom(container, 'mouseenter');
+    pauseButton.click();
+    pauseButton.click();
+    expect(frameMovesTrack(track)).toBe(true);
+
+    // The override retires with the gesture it overrode, rather than disabling
+    // pauseOnHover for the rest of the page's life.
+    dispatchFrom(container, 'mouseleave');
+    dispatchFrom(container, 'mouseenter');
+
+    expect(frameMovesTrack(track)).toBe(false);
+
+    marquee.destroy();
+  });
+
+  it('should keep an explicit pause across a pointer leave and re-entry', async () => {
+    installMatchMedia(false);
+    const { container, track, pauseButton } = buildFixture();
+
+    const marquee = new Marquee(document.querySelector('.wrapper')!, {
+      pauseOnHover: true,
+    });
+    await marquee.ready;
+
+    pauseButton.click();
+
+    dispatchFrom(container, 'mouseenter');
+    dispatchFrom(container, 'mouseleave');
+
+    // Only 'running' expires on leave. A deliberate pause outliving these
+    // gestures is the whole of WCAG 2.2.2.
+    expect(marquee.isPaused()).toBe(true);
+    expect(frameMovesTrack(track)).toBe(false);
+
+    marquee.destroy();
+  });
+
+  it('should ignore focus entirely when pauseOnFocus is off', async () => {
+    installMatchMedia(false);
+    const { track } = buildFixture();
+    const link = document.querySelector<HTMLElement>('.wrapper a')!;
+
+    const marquee = new Marquee(document.querySelector('.wrapper')!);
+    await marquee.ready;
+
+    dispatchFrom(link, 'focusin');
+
+    expect(marquee.isPaused()).toBe(false);
+    expect(frameMovesTrack(track)).toBe(true);
+
+    marquee.destroy();
+  });
+
+  it('should pause on the first mouse press when pauseOnFocus is on (#92)', async () => {
+    installMatchMedia(false);
+    const { track, pauseButton } = buildFixture();
+
+    const marquee = new Marquee(document.querySelector('.wrapper')!, {
+      pauseOnFocus: true,
+    });
+    await marquee.ready;
+
+    // Chrome and Firefox focus a <button> on mousedown, BEFORE click fires. So
+    // by the time the press is handled, the marquee is already stopped — by
+    // the press itself. A toggle reading the effective state would see
+    // "paused" and resume, and the reader's first click would do the opposite
+    // of what the label promised.
+    dispatchFrom(pauseButton, 'focusin');
+    expect(marquee.isPaused()).toBe(true);
+
+    pauseButton.click();
+
+    expect(marquee.isPaused()).toBe(true);
+    expect(frameMovesTrack(track)).toBe(false);
+    expect(pauseButton.getAttribute('data-marquee-paused')).toBe('true');
+
+    marquee.destroy();
+  });
+
+  it('should pause on the first tap when pauseOnHover is on (#92)', async () => {
+    installMatchMedia(false);
+    const { container, track, pauseButton } = buildFixture();
+
+    const marquee = new Marquee(document.querySelector('.wrapper')!, {
+      pauseOnHover: true,
+    });
+    await marquee.ready;
+
+    // Touch browsers emulate mouseenter on the tapped element's container
+    // before the click, and it sticks — no mouseleave arrives until the reader
+    // taps elsewhere. Same shape as the focus case: the press creates the very
+    // transient pause that would flip the toggle against it.
+    dispatchFrom(container, 'mouseenter');
+    expect(marquee.isPaused()).toBe(true);
+
+    pauseButton.click();
+
+    expect(marquee.isPaused()).toBe(true);
+    expect(frameMovesTrack(track)).toBe(false);
+
+    marquee.destroy();
+  });
+
+  it('should leave hover pausing intact after a resume() from outside (#92)', async () => {
+    installMatchMedia(false);
+    const { container, track } = buildFixture();
+
+    const marquee = new Marquee(document.querySelector('.wrapper')!, {
+      pauseOnHover: true,
+    });
+    await marquee.ready;
+
+    // Nothing transient is holding the marquee here, so there is nothing for a
+    // 'running' override to outrank. Recording one anyway would survive until
+    // the next mouseleave and swallow the hover that follows.
+    marquee.pause();
+    marquee.resume();
+
+    dispatchFrom(container, 'mouseenter');
+
+    expect(marquee.isPaused()).toBe(true);
+    expect(frameMovesTrack(track)).toBe(false);
+
+    marquee.destroy();
+  });
+
+  it('should take the focus listeners back off on destroy', async () => {
+    installMatchMedia(false);
+    const { container, wrapper } = buildFixture();
+
+    const marquee = new Marquee(wrapper, { pauseOnFocus: true });
+    await marquee.ready;
+
+    const removed = vi.spyOn(container, 'removeEventListener');
+    marquee.destroy();
+
+    const types = removed.mock.calls.map(([type]) => type);
+    expect(types).toContain('focusin');
+    expect(types).toContain('focusout');
   });
 });
 
