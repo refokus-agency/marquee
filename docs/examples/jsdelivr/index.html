@@ -163,7 +163,7 @@
     const status = document.getElementById('status');
 
     try {
-      const marquees = await initMarquee();
+      const marquees = initMarquee();
       status.textContent = `Initialized ${marquees.length} marquee instance(s) from jsDelivr.`;
     } catch (error) {
       status.textContent = `Failed to initialize: ${error.message}`;
