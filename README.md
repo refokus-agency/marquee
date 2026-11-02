@@ -422,96 +422,37 @@ Configure each marquee instance directly in HTML — no JS config needed when us
 
 ## Accessibility
 
+The marquee is accessible by default in two ways, and accepts one piece of markup from you for the
+third. Full reasoning, edge cases and audit notes live in **[docs/accessibility.md](docs/accessibility.md)**.
+
+| Behaviour | Default | Needs markup from you |
+|---|---|---|
+| Honors `prefers-reduced-motion` | on | no |
+| Clones excluded from the a11y tree and tab order | always | no |
+| Pause button bound, when present | on | **yes** |
+| Pause on hover / on focus | off | no |
+
 ### Reduced Motion
 
-By default the marquee honors the operating system's reduced-motion setting. While
-`(prefers-reduced-motion: reduce)` matches, the marquee:
-
-- stops advancing and resets to its start position
-- sets `overflow-x: auto` on the **container** (or `overflow-y` for `ttb` / `btt`) so the content
-  stays reachable by native scrolling
-- kills the drag interaction, if `draggable` was enabled
-- reports `isPaused() === true`, and ignores `resume()` — the preference outranks it, so nothing
-  moves until the preference itself changes
-
-The scroll affordance matters: a frozen marquee that still clips its overflow would hide every item
-past the container edge with no way to reach them. Native scrolling replaces the animation as the
-mechanism for getting to that content — which is also why drag is dropped rather than kept. Drag
-and native scroll compete for the same gesture on the same axis, and on touch they fight outright,
-so the one that guarantees reachability wins.
-
-This is the only style the library writes on an element you own. Whatever inline `overflow-x` /
-`overflow-y` the container already had is recorded and restored verbatim when the preference turns
-off or the instance is destroyed. Nothing else on the container is read or written — including its
-scroll offsets, which are only ever reset on the axis the library itself made scrollable.
-
-On platforms with classic scrollbars (Windows), the scrollbar appearing can shift the layout around
-the marquee. Reserve the space if that matters to you:
-
-```css
-.marquee-container {
-  scrollbar-gutter: stable;
-}
-```
-
-The preference is watched live, not read once: flipping it at the OS level freezes or resumes an
-already-running marquee.
-
-To animate regardless of the preference, opt out:
+While `(prefers-reduced-motion: reduce)` matches, the marquee freezes at its start position and the
+container becomes natively scrollable so the content stays reachable. Drag is dropped, `isPaused()`
+reports `true`, and the preference is watched live. The container's inline overflow is recorded and
+restored verbatim afterwards.
 
 ```typescript
-// Per instance
-const marquee = await createMarquee('#my-marquee', { respectReducedMotion: false });
-
-// Or for every marquee on the page
-await initMarquee({ respectReducedMotion: false });
+await initMarquee({ respectReducedMotion: false }); // animate regardless
 ```
 
-```html
-<!-- Or per element, with initMarquee() -->
-<div data-marquee data-marquee-respect-reduced-motion="false">…</div>
-```
-
-> `respectReducedMotion: false` opts out of **honoring** the preference, not out of detecting it.
-> Setting it to `false` means "animate anyway", so use it only where motion is essential to what
-> the content communicates.
-
-Browsers that cannot report the preference at all animate normally, as does any environment without
-`window.matchMedia`.
-
-#### Known limitations
-
-The live watching runs on `gsap.matchMedia()`, which brings two GSAP behaviors with it. Neither is
-specific to this library — they affect every `gsap.matchMedia()` consumer — but both are worth
-knowing about.
-
-**Two preference changes less than 2ms apart: the second is dropped.** GSAP coalesces media-change
-events into one pass every 2ms, shared across every `gsap.matchMedia()` user on the page. That coalescing is what keeps
-one preference change from being processed once per registered query, but it cannot tell duplicate
-events apart from two genuinely different values. When the second value is dropped, GSAP's record of
-the preference does not advance either, so the marquee can stay out of sync with the real setting
-until the next media change anywhere on the page resynchronizes it.
-
-In practice this is a testing concern, not a user-facing one: the first change after page load is
-always applied, and nobody can toggle an OS setting twice within 2ms. What *can* is an automated
-suite driving the preference through something like Playwright's `emulateMediaFeatures()`. **If you
-assert reduced-motion behavior in tests, leave more than 2ms between flips** — otherwise a pass or a
-failure may be measuring the dropped event rather than the marquee.
-
-**The native media-query listener outlives `destroy()`.** `destroy()` releases the
-`gsap.matchMedia()` context, but GSAP never calls `removeListener` on the underlying
-`MediaQueryList`, and exposes no API to do it. The destroyed instance is still garbage-collectible —
-GSAP's handler is a module-level function holding no per-instance state — but the native listener
-count grows across mount/unmount cycles in SPA-style usage.
+→ [Details, opt-out forms, and two `gsap.matchMedia()` caveats](docs/accessibility.md#reduced-motion)
 
 ### Pause Button
 
-A pause button is the mechanism WCAG [2.2.2 Pause, Stop, Hide](https://www.w3.org/WAI/WCAG22/Understanding/pause-stop-hide.html)
-is really asking for. [Reduced Motion](#reduced-motion) already covers conformance, but it lives in
-an OS setting most people never find — the button is the part a reader can actually see and press.
+Reduced motion covers [WCAG 2.2.2](https://www.w3.org/WAI/WCAG22/Understanding/pause-stop-hide.html)
+conformance, but it lives in an OS setting most people never find. The button is the part a reader
+can see and press. **You supply it; the library binds it and ships no CSS for it.**
 
-The markup is yours. The library never injects a button and never styles one; it binds the button
-you put in the container:
+Put a real `<button>` inside the container, as a **sibling of the track** — the wrapper is cloned,
+so a button inside the track would be duplicated into every clone:
 
 ```html
 <div class="marquee-container">
@@ -519,10 +460,8 @@ you put in the container:
     <div data-marquee class="marquee-wrapper">
       <div data-marquee-item>Item 1</div>
     </div>
-    <!-- clones are automatically appended here -->
   </div>
 
-  <!-- Inside the container, OUTSIDE the track -->
   <button type="button" data-marquee-pause-button>
     <span data-when="running">Pause</span>
     <span data-when="paused">Play</span>
@@ -530,25 +469,8 @@ you put in the container:
 </div>
 ```
 
-**The button has to sit outside the track.** The wrapper is cloned to fill the track, so a button
-placed in there would be duplicated into every clone — and clones are marked `aria-hidden` with
-`tabindex="-1"`, so most of the copies are unreachable anyway. A button found inside the track is
-refused, with a warning saying so.
-
-Use a real `<button>`. Any element matching the selector gets bound, but only a button comes with
-keyboard operability and the right role, and the library cannot supply either — so a match that is
-neither a `<button>` nor `role="button"` is bound *and* warned about. A pause control only mouse
-users can operate does not satisfy the criterion it exists for.
-
-The lookup is scoped to each instance's own container, so a page full of marquees never has one
-binding another's control.
-
-#### State and labelling
-
-Every press toggles the marquee, and the library mirrors the result onto the button as
-`data-marquee-paused="true" | "false"`. It writes state, never content — rewriting your text would
-clobber your copy and your translations — so the attribute is the hook for swapping the label
-yourself:
+The library mirrors state onto it as `data-marquee-paused="true" | "false"` — never your content —
+so you swap the label yourself:
 
 ```css
 [data-marquee-pause-button] [data-when='paused'],
@@ -561,139 +483,31 @@ yourself:
 }
 ```
 
-Two real elements rather than `::after` generated content, so the button keeps an accessible name
-if your CSS is overridden or never loads. Swapping which one is `display: none` swaps the button's
-accessible name with it, which is the [APG carousel pattern](https://www.w3.org/WAI/ARIA/apg/patterns/carousel/)'s
-approach.
+With no button in the container the library warns. Opt out with `pauseButton: false`, or point it at
+your own selector with `pauseButtonSelector`.
 
-The library does **not** write `aria-pressed`. That attribute is only valid on something with button
-semantics, and `pauseButtonSelector` can match any element — so writing it risks an
-`aria-allowed-attr` violation in your page, introduced by an accessibility feature. It would also
-double-signal against the label swap above: a control whose text already reads "Play" does not also
-need to announce "pressed".
-
-The attribute tracks the reader's **own** pause, not the effective state — a hover or focus pause
-is deliberately not mirrored. The label it drives has to describe what the *next press* does, and
-the press acts on exactly this. So while hover is holding the marquee still, the control still reads
-"Pause": pressing it is what makes that stop survive the pointer moving away.
-
-This also keeps the control correct under the input methods that pause the marquee *by reaching for
-it*. The button is inside the container, so `mousedown` focusing it (Chrome, Firefox) or a tap's
-emulated `mouseenter` (touch) stops the marquee before the press is even handled. A control that
-toggled on the effective state would read that as "already paused", resume, and do the opposite of
-what the reader pressed.
-
-#### Explicit intent outranks hover and focus
-
-A press is a standing decision, and it beats the transient hover and focus pauses in both
-directions.
-
-**Pausing holds.** Leaving hover or moving focus out never resumes a marquee the reader stopped on
-purpose — a mechanism another gesture can silently undo is not a mechanism.
-
-**Resuming holds too, and this is not symmetric politeness.** The button lives inside the container,
-so under `pauseOnHover` the pointer is *always* on the marquee at the moment of the press. If a
-press only cleared its own flag, the hover pause would immediately re-assert and the control would be
-permanently dead in that configuration. So an explicit resume outranks hover and focus rather than
-clearing them, and retires itself once the pointer leaves and focus moves out — after which the next
-hover or tab-in pauses normally again.
-
-That override is recorded **only** while hover or focus is actually holding the marquee. With
-nothing transient to outrank there is nothing to override, and recording one anyway would linger —
-it is only retired on `mouseleave` and `focusout` — and swallow the next hover entirely.
-
-One consequence worth knowing: pressing pause on a marquee already stopped by hover or focus looks
-like nothing happened. It did — the stop is now the reader's, and it outlives the pointer. Releasing
-it takes a second press.
-
-The upshot for `isPaused()`: it reports whether the marquee is moving, from any cause — an explicit
-pause, a hover or focus pause, or reduced motion.
-
-#### Under reduced motion the button is hidden
-
-While reduced motion is applied the marquee cannot move and `isPaused()` already reports `true`, so
-the button has nothing to control and is hidden with an inline `display: none`. Hiding follows the
-**applied** state, not the OS preference: with `respectReducedMotion: false` the marquee moves and
-the button stays. Whatever inline `display` the button already had is recorded and restored verbatim
-when the preference turns off or the instance is destroyed, along with any `data-marquee-paused` it
-carried before the library touched it.
-
-#### Opting out
-
-With no button in the container, the library warns — unconditionally, on every environment,
-including production. There is no environment detection in this package, and adding a
-`process.env.NODE_ENV` guard would throw `ReferenceError: process is not defined` on the CDN path
-this README documents. For a marquee that deliberately ships no button, say so and the warning goes
-away:
-
-```typescript
-await initMarquee({ pauseButton: false });
-```
-
-```html
-<!-- Or per element, with initMarquee() -->
-<div data-marquee data-marquee-pause-button-enabled="false">…</div>
-```
-
-Or point the library at your own selector instead of the marker attribute:
-
-```typescript
-await initMarquee({ pauseButtonSelector: '.my-marquee-stop' });
-```
-
-An invalid selector is warned about and treated as "no button" — it never takes the marquee itself
-down with it.
+→ [Why `data-marquee-paused` and not `aria-pressed`, how a press outranks hover and focus, and what
+happens under reduced motion](docs/accessibility.md#the-pause-button)
 
 ### Pause on Focus
 
 `pauseOnFocus` is the keyboard counterpart to `pauseOnHover`: while focus sits inside the container
-the marquee holds still, so a reader tabbing through its links is not chasing a moving target.
+the marquee holds still, so a reader tabbing through its links is not chasing a moving target. Both
+stay `false` by default — neither gets you 2.2.2 on its own, since neither helps a touch user.
 
 ```typescript
 await initMarquee({ pauseOnFocus: true });
 ```
 
-```html
-<div data-marquee data-marquee-pause-on-focus="true">…</div>
-```
-
-The pause button counts as inside the container, because it is. Tabbing from a link towards the
-control therefore does not restart the marquee under the reader's hands; the press that follows
-makes that stop the reader's own, so it survives tabbing back out.
-
-Two things limit how far this reaches on its own, which is why it is not a substitute for the
-button. A running marquee's container is `overflow: hidden` and not a scroll container, so it is not
-focusable itself: if your items carry no links or buttons, there is nothing inside to focus. And
-neither focus nor hover helps a touch user, or assistive technology driven in a mode that moves
-neither.
-
-`pauseOnHover` and `pauseOnFocus` both stay `false` by default. Flipping either one does not get you
-2.2.2 — with a button, the button is the conforming mechanism; without one, hover and focus miss
-exactly the users who need the mechanism most.
+→ [Details and limits](docs/accessibility.md#pause-on-focus)
 
 ### Clones and the Accessibility Tree
 
-The marquee fills the track by cloning its wrapper. Every clone gets `aria-hidden="true"`, and every
-focusable element inside it gets `tabindex="-1"` — otherwise a screen reader would announce each item
-several times over, and every cloned link would become a duplicate tab stop.
+Every clone gets `aria-hidden="true"` and its focusable children get `tabindex="-1"`, so anything
+focusable inside a marquee is reachable by keyboard and assistive technology **exactly once**.
+Clones stay clickable.
 
-Both go on every clone the marquee creates, independent of `respectReducedMotion` and of the motion
-preference. **Anything focusable inside a marquee is reachable by keyboard and by assistive
-technology exactly once**, in the original wrapper. Clones stay fully clickable, so a reader can
-activate whichever copy of a link happens to be under the pointer.
-
-That last part is why `inert` is not used, despite covering both exclusions in a single attribute.
-`inert` also blocks hit-testing, and the track only ever translates by one period — so the original
-wrapper occupies at most its own width of the container, and most of what the reader sees at any
-moment is a clone. Under `inert` the majority of a marquee's links would silently stop responding to
-clicks, which reads as a broken site rather than a library limitation. `aria-hidden` and `tabindex`
-also work in every browser, where `inert` needs Chrome 102+, Safari 15.5+ or Firefox 112+ to do
-anything at all.
-
-The tradeoff this leaves: a pointer can still move focus into an `aria-hidden` subtree, so an
-accessibility audit will flag `aria-hidden-focus` as needs-review rather than passing clean. Mouse
-users who click a cloned link navigate immediately, and keyboard and screen-reader users never reach
-one, so the flag is expected here.
+→ [Why not `inert`, and the one audit flag to expect](docs/accessibility.md#clones-and-the-accessibility-tree)
 
 ---
 
@@ -872,7 +686,7 @@ Additional options for `initMarquee()`:
 
 | Method | Return | Description |
 |--------|--------|-------------|
-| `pause()` | `void` | Pause deliberately — hover and focus cannot lift it, see [Pause Button](#explicit-intent-outranks-hover-and-focus) |
+| `pause()` | `void` | Pause deliberately — hover and focus cannot lift it, see [Explicit intent](docs/accessibility.md#explicit-intent-outranks-hover-and-focus) |
 | `resume()` | `void` | Resume deliberately — outranks a hover or focus pause until the pointer leaves and focus moves out; no effect while reduced motion is active, see [Reduced Motion](#reduced-motion) |
 | `isPaused()` | `boolean` | Check if paused — `true` for an explicit, hover, or focus pause, and while reduced motion is active |
 | `isReady()` | `boolean` | True after images loaded and init complete |
