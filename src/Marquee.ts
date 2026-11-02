@@ -109,6 +109,15 @@ interface SavedContainerOverflow {
 }
 
 /**
+ * An attribute the library wrote on the container while reduced motion is
+ * active, with the value to put back: `null` means it was absent.
+ */
+interface SavedContainerAttribute {
+  name: 'tabindex' | 'role';
+  previousValue: string | null;
+}
+
+/**
  * Marquee class for creating infinite scrolling animations.
  *
  * Requires a 3-level DOM structure:
@@ -157,6 +166,7 @@ export class Marquee {
   private reducedMotion: boolean = false;
   private reducedMotionMedia: gsap.MatchMedia | null = null;
   private savedOverflow: SavedContainerOverflow | null = null;
+  private savedAttributes: SavedContainerAttribute[] = [];
 
   /**
    * Creates a new Marquee instance and waits for images before initializing.
@@ -496,6 +506,7 @@ export class Marquee {
     this.stopMotion();
     this.resetPosition();
     this.applyScrollOverflow();
+    this.applyKeyboardAccess();
   }
 
   /** Undoes {@link enterReducedMotion} and puts the marquee back in motion. */
@@ -506,6 +517,7 @@ export class Marquee {
     // animate from that offset with no way to scroll back.
     this.resetContainerScroll();
     this.restoreContainerOverflow();
+    this.restoreKeyboardAccess();
     this.startMotion();
   }
 
@@ -554,6 +566,63 @@ export class Marquee {
     const { property, previousInlineValue } = this.savedOverflow;
     this.container.style[property] = previousInlineValue;
     this.savedOverflow = null;
+  }
+
+  /**
+   * Makes the frozen, scrollable container reachable by keyboard.
+   *
+   * A scroll container is only keyboard-scrollable if it can take focus, and
+   * not every browser focuses one by default (Safari). Conservative by design,
+   * since the container is the integrator's element and a tab stop changes the
+   * host page's tab order:
+   * - nothing is written when the original wrapper holds focusable content;
+   *   tabbing to it already scrolls it into view, and a container stop would
+   *   only be redundant.
+   * - `tabindex` is never overwritten if the integrator set one.
+   * - `role="region"` is added only when the container already has an
+   *   accessible name (`aria-label` / `aria-labelledby`) and no role. An
+   *   unnamed region is a worse landing spot than none.
+   *
+   * Every attribute written is recorded and put back by
+   * {@link restoreKeyboardAccess}.
+   */
+  private applyKeyboardAccess(): void {
+    if (this.element.querySelector(FOCUSABLE_SELECTOR)) return;
+    if (this.element.matches(FOCUSABLE_SELECTOR)) return;
+
+    if (!this.container.hasAttribute('tabindex')) {
+      this.writeContainerAttribute('tabindex', '0');
+    }
+
+    const named =
+      this.container.hasAttribute('aria-label') ||
+      this.container.hasAttribute('aria-labelledby');
+    if (named && !this.container.hasAttribute('role')) {
+      this.writeContainerAttribute('role', 'region');
+    }
+  }
+
+  private writeContainerAttribute(
+    name: SavedContainerAttribute['name'],
+    value: string,
+  ): void {
+    this.savedAttributes.push({
+      name,
+      previousValue: this.container.getAttribute(name),
+    });
+    this.container.setAttribute(name, value);
+  }
+
+  /** Puts back every attribute {@link applyKeyboardAccess} wrote; absent ones are removed. */
+  private restoreKeyboardAccess(): void {
+    for (const { name, previousValue } of this.savedAttributes) {
+      if (previousValue === null) {
+        this.container.removeAttribute(name);
+      } else {
+        this.container.setAttribute(name, previousValue);
+      }
+    }
+    this.savedAttributes = [];
   }
 
   /**
@@ -745,6 +814,7 @@ export class Marquee {
     // exactly as the integrator had it, never read and never written.
     this.resetContainerScroll();
     this.restoreContainerOverflow();
+    this.restoreKeyboardAccess();
 
     if (this.resizeHandler) {
       window.removeEventListener('resize', this.resizeHandler);
