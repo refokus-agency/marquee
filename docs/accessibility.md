@@ -79,7 +79,7 @@ Browsers that cannot report the preference at all animate normally, as does any 
 const marquee = await createMarquee('#my-marquee', { respectReducedMotion: false });
 
 // Or for every marquee on the page
-await initMarquee({ respectReducedMotion: false });
+initMarquee({ respectReducedMotion: false });
 ```
 
 ```html
@@ -213,7 +213,7 @@ the README documents. For a marquee that deliberately ships no button, say so an
 away:
 
 ```typescript
-await initMarquee({ pauseButton: false });
+initMarquee({ pauseButton: false });
 ```
 
 ```html
@@ -224,7 +224,7 @@ await initMarquee({ pauseButton: false });
 Or point the library at your own selector instead of the marker attribute:
 
 ```typescript
-await initMarquee({ pauseButtonSelector: '.my-marquee-stop' });
+initMarquee({ pauseButtonSelector: '.my-marquee-stop' });
 ```
 
 An invalid selector is warned about and treated as "no button" — it never takes the marquee itself
@@ -236,7 +236,7 @@ down with it.
 the marquee holds still, so a reader tabbing through its links is not chasing a moving target.
 
 ```typescript
-await initMarquee({ pauseOnFocus: true });
+initMarquee({ pauseOnFocus: true });
 ```
 
 ```html

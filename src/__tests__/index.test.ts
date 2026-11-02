@@ -33,13 +33,109 @@ describe('initMarquee', () => {
   });
 
   it('should return empty array when no elements match', async () => {
-    const instances = await initMarquee({ wrapperSelector: '.non-existent' });
+    const instances = initMarquee({ wrapperSelector: '.non-existent' });
     expect(instances).toEqual([]);
   });
 
   it('should return empty array when no elements exist with default selector', async () => {
-    const instances = await initMarquee();
+    const instances = initMarquee();
     expect(instances).toEqual([]);
+  });
+});
+
+describe('initMarquee - lazy viewport init', () => {
+  type Callback = (entries: { isIntersecting: boolean }[]) => void;
+  let observers: { target: Element | null; callback: Callback }[];
+
+  function reveal(target: Element) {
+    for (const o of observers) {
+      if (o.target === target) o.callback([{ isIntersecting: true }]);
+    }
+  }
+
+  /** jsdom never fetches images, so fire `load` by hand once listeners exist. */
+  async function loadImages() {
+    document.querySelectorAll('img').forEach((img) => {
+      img.dispatchEvent(new Event('load'));
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  }
+
+  function render(): { top: HTMLElement; bottom: HTMLElement } {
+    document.body.innerHTML = `
+      <div class="container" id="top"><div class="track">
+        <div data-marquee><img src="a.png" data-marquee-item></div>
+      </div></div>
+      <div style="height: 4000px"></div>
+      <div class="container" id="bottom"><div class="track">
+        <div data-marquee><img src="b.png" data-marquee-item></div>
+      </div></div>
+    `;
+    return {
+      top: document.getElementById('top')!,
+      bottom: document.getElementById('bottom')!,
+    };
+  }
+
+  beforeEach(() => {
+    observers = [];
+    class FakeIntersectionObserver {
+      target: Element | null = null;
+      constructor(private callback: Callback) {}
+      observe(el: Element) {
+        this.target = el;
+        observers.push(this as any);
+      }
+      unobserve() {}
+      disconnect() {
+        observers = observers.filter((o) => o !== (this as any));
+      }
+    }
+    vi.stubGlobal('IntersectionObserver', FakeIntersectionObserver);
+    installMatchMedia(false);
+  });
+
+  afterEach(() => {
+    document.body.innerHTML = '';
+    vi.unstubAllGlobals();
+  });
+
+  it('should return instances synchronously without waiting for the page', () => {
+    render();
+    const marquees = initMarquee();
+    expect(marquees).toHaveLength(2);
+    expect(marquees[0]).toBeInstanceOf(Marquee);
+    marquees.forEach((m) => m.destroy());
+  });
+
+  it('should let a visible marquee become ready while a below-fold one is pending', async () => {
+    const { top } = render();
+    const [first, second] = initMarquee();
+
+    reveal(top);
+    await Promise.resolve();
+    await loadImages();
+    await first!.ready;
+
+    expect(first!.isReady()).toBe(true);
+    expect(second!.isReady()).toBe(false);
+
+    first!.destroy();
+    second!.destroy();
+  });
+
+  it('should allow destroying a marquee that never entered the viewport', async () => {
+    const { bottom } = render();
+    const [_first, second] = initMarquee();
+
+    second!.destroy();
+    expect(second!.isDestroyed()).toBe(true);
+
+    reveal(bottom);
+    await second!.ready;
+    expect(second!.isReady()).toBe(false);
+
+    _first!.destroy();
   });
 });
 
@@ -96,7 +192,8 @@ describe('initMarquee - reduced motion plumbing', () => {
     installMatchMedia(true);
     renderMarkup();
 
-    const [marquee] = await initMarquee();
+    const [marquee] = initMarquee();
+    await marquee!.ready;
 
     expect(marquee!.isPaused()).toBe(true);
 
@@ -109,7 +206,8 @@ describe('initMarquee - reduced motion plumbing', () => {
       'data-marquee-respect-reduced-motion="false"',
     );
 
-    const [marquee] = await initMarquee();
+    const [marquee] = initMarquee();
+    await marquee!.ready;
 
     expect(marquee!.isPaused()).toBe(false);
     expect(container.style.overflowX).toBe('');
@@ -121,7 +219,8 @@ describe('initMarquee - reduced motion plumbing', () => {
     installMatchMedia(true);
     const container = renderMarkup();
 
-    const [marquee] = await initMarquee({ respectReducedMotion: false });
+    const [marquee] = initMarquee({ respectReducedMotion: false });
+    await marquee!.ready;
 
     expect(marquee!.isPaused()).toBe(false);
     expect(container.style.overflowX).toBe('');
@@ -133,7 +232,8 @@ describe('initMarquee - reduced motion plumbing', () => {
     installMatchMedia(true);
     renderMarkup('data-marquee-respect-reduced-motion="false"');
 
-    const [marquee] = await initMarquee({ respectReducedMotion: true });
+    const [marquee] = initMarquee({ respectReducedMotion: true });
+    await marquee!.ready;
 
     expect(marquee!.isPaused()).toBe(false);
 
@@ -144,9 +244,10 @@ describe('initMarquee - reduced motion plumbing', () => {
     installMatchMedia(true);
     renderMarkup('data-keep-moving="false"');
 
-    const [marquee] = await initMarquee({
+    const [marquee] = initMarquee({
       respectReducedMotionAttribute: 'data-keep-moving',
     });
+    await marquee!.ready;
 
     expect(marquee!.isPaused()).toBe(false);
 
@@ -157,9 +258,10 @@ describe('initMarquee - reduced motion plumbing', () => {
     installMatchMedia(true);
     renderMarkup('data-marquee-respect-reduced-motion="false"');
 
-    const [marquee] = await initMarquee({
+    const [marquee] = initMarquee({
       respectReducedMotionAttribute: 'data-keep-moving',
     });
+    await marquee!.ready;
 
     expect(marquee!.isPaused()).toBe(true);
 
@@ -216,7 +318,9 @@ describe('initMarquee - pause mechanism plumbing', () => {
     installMatchMedia(false);
     const button = renderMarkup();
 
-    const [marquee] = await initMarquee();
+    const [marquee] = initMarquee();
+
+    await marquee!.ready;
     button.click();
 
     expect(marquee!.isPaused()).toBe(true);
@@ -229,7 +333,9 @@ describe('initMarquee - pause mechanism plumbing', () => {
     installMatchMedia(false);
     const button = renderMarkup('data-marquee-pause-button-enabled="false"');
 
-    const [marquee] = await initMarquee();
+    const [marquee] = initMarquee();
+
+    await marquee!.ready;
     button.click();
 
     expect(marquee!.isPaused()).toBe(false);
@@ -242,7 +348,9 @@ describe('initMarquee - pause mechanism plumbing', () => {
     installMatchMedia(false);
     const button = renderMarkup();
 
-    const [marquee] = await initMarquee({ pauseButton: false });
+    const [marquee] = initMarquee({ pauseButton: false });
+
+    await marquee!.ready;
     button.click();
 
     expect(marquee!.isPaused()).toBe(false);
@@ -259,7 +367,9 @@ describe('initMarquee - pause mechanism plumbing', () => {
     custom.className = 'stop';
     document.querySelector('.container')!.appendChild(custom);
 
-    const [marquee] = await initMarquee({ pauseButtonSelector: '.stop' });
+    const [marquee] = initMarquee({ pauseButtonSelector: '.stop' });
+
+    await marquee!.ready;
     custom.click();
 
     expect(marquee!.isPaused()).toBe(true);
@@ -273,7 +383,9 @@ describe('initMarquee - pause mechanism plumbing', () => {
     renderMarkup();
     const link = document.querySelector<HTMLElement>('.wrapper a')!;
 
-    const [marquee] = await initMarquee();
+    const [marquee] = initMarquee();
+
+    await marquee!.ready;
     link.dispatchEvent(new Event('focusin', { bubbles: true }));
 
     expect(marquee!.isPaused()).toBe(false);
@@ -286,7 +398,9 @@ describe('initMarquee - pause mechanism plumbing', () => {
     renderMarkup('data-marquee-pause-on-focus');
     const link = document.querySelector<HTMLElement>('.wrapper a')!;
 
-    const [marquee] = await initMarquee();
+    const [marquee] = initMarquee();
+
+    await marquee!.ready;
     link.dispatchEvent(new Event('focusin', { bubbles: true }));
 
     expect(marquee!.isPaused()).toBe(true);
@@ -299,7 +413,9 @@ describe('initMarquee - pause mechanism plumbing', () => {
     renderMarkup();
     const link = document.querySelector<HTMLElement>('.wrapper a')!;
 
-    const [marquee] = await initMarquee({ pauseOnFocus: true });
+    const [marquee] = initMarquee({ pauseOnFocus: true });
+
+    await marquee!.ready;
     link.dispatchEvent(new Event('focusin', { bubbles: true }));
 
     expect(marquee!.isPaused()).toBe(true);
@@ -312,9 +428,11 @@ describe('initMarquee - pause mechanism plumbing', () => {
     renderMarkup('data-hold-on-focus');
     const link = document.querySelector<HTMLElement>('.wrapper a')!;
 
-    const [marquee] = await initMarquee({
+    const [marquee] = initMarquee({
       pauseOnFocusAttribute: 'data-hold-on-focus',
     });
+
+    await marquee!.ready;
     link.dispatchEvent(new Event('focusin', { bubbles: true }));
 
     expect(marquee!.isPaused()).toBe(true);
@@ -327,7 +445,9 @@ describe('initMarquee - pause mechanism plumbing', () => {
     renderMarkup();
     document.querySelector('[data-marquee-pause-button]')!.remove();
 
-    const marquees = await initMarquee();
+    const marquees = initMarquee();
+
+    await Promise.all(marquees.map((m) => m.ready));
 
     expect(pauseButtonWarnings()).toEqual([
       expect.stringContaining('no pause button matching'),
