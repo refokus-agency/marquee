@@ -89,6 +89,41 @@
       flex-shrink: 0;
     }
 
+    /* ─── PAUSE BUTTON ────────────────────────────────────────────────────
+     * The library ships no CSS for the pause button and never injects one —
+     * this is the integrator's, which is to say the demo's, job. Left in normal
+     * flow rather than positioned over the marquee: the container is
+     * `overflow: hidden` and the library writes its overflow under reduced
+     * motion, so an absolutely-positioned control would be clipped.
+     *
+     * The label swap is keyed off the `data-marquee-paused` the library writes,
+     * so nothing here has to rewrite the button's content. Two real spans
+     * rather than ::after generated content, so the button keeps an accessible
+     * name even if this stylesheet never loads.
+     * ─────────────────────────────────────────────────────────────────── */
+
+    .c-marquee-pause {
+      margin-top: 0.75rem;
+      padding: 0.4rem 0.9rem;
+      border: 1px solid rgba(255, 255, 255, 0.25);
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.08);
+      color: white;
+      font: inherit;
+      font-size: 0.8rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .c-marquee-pause [data-when='paused'],
+    .c-marquee-pause[data-marquee-paused='true'] [data-when='running'] {
+      display: none;
+    }
+
+    .c-marquee-pause[data-marquee-paused='true'] [data-when='paused'] {
+      display: revert;
+    }
+
     .c-marquee-item {
       flex-shrink: 0;
       padding: 0 2rem;
@@ -137,6 +172,11 @@
           <div data-marquee-item class="c-marquee-item">Brand <span>&amp;</span> Identity</div>
         </div>
       </div>
+      <!-- Inside the container, OUTSIDE the track — the track's contents get cloned -->
+      <button type="button" data-marquee-pause-button class="c-marquee-pause">
+        <span data-when="running">Pause</span>
+        <span data-when="paused">Play</span>
+      </button>
     </div>
   </section>
 
@@ -150,6 +190,10 @@
           <div data-marquee-item class="c-marquee-item">Systems <span>&amp;</span> Tooling</div>
         </div>
       </div>
+      <button type="button" data-marquee-pause-button class="c-marquee-pause">
+        <span data-when="running">Pause</span>
+        <span data-when="paused">Play</span>
+      </button>
     </div>
   </section>
 

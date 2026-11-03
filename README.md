@@ -25,6 +25,8 @@ A GSAP-powered infinite marquee component for smooth, continuous scrolling anima
   - [Data Attributes](#data-attributes)
 - [Accessibility](#accessibility)
   - [Reduced Motion](#reduced-motion)
+  - [Pause Button](#pause-button)
+  - [Pause on Focus](#pause-on-focus)
   - [Clones and the Accessibility Tree](#clones-and-the-accessibility-tree)
 - [Webflow Setup](#webflow-setup)
   - [If the page already loads GSAP](#if-the-page-already-loads-gsap)
@@ -50,7 +52,8 @@ A GSAP-powered infinite marquee component for smooth, continuous scrolling anima
 - Horizontal (`ltr` / `rtl`) and vertical (`ttb` / `btt`) scroll directions
 - Adjustable scroll speed
 - Optional drag/touch interaction
-- Pause on hover option
+- Pause on hover and pause on focus options
+- Binds **your** pause button — a visible WCAG 2.2.2 mechanism, no CSS shipped
 - Honors `prefers-reduced-motion` — freezes and becomes scrollable instead
 - Dynamic cloning based on container size (auto add/remove on resize)
 - Full TypeScript support
@@ -279,9 +282,9 @@ const marquee = await createMarquee(element, { direction: 'ttb' });
 const [marquee] = initMarquee();
 await marquee.ready;
 
-marquee.pause();
-marquee.resume();
-marquee.isPaused();       // boolean
+marquee.pause();          // deliberate — hover and focus cannot lift it
+marquee.resume();         // deliberate — outranks a hover or focus pause
+marquee.isPaused();       // boolean — true for any cause, transient ones included
 
 marquee.setSpeed(2);
 marquee.getSpeed();       // 2
@@ -432,117 +435,103 @@ Configure each marquee instance directly in HTML — no JS config needed when us
 | `data-marquee-speed` | any number, e.g. `2` | `1` |
 | `data-marquee-draggable` | `true` \| `false` | `false` |
 | `data-marquee-pause-on-hover` | `true` \| `false` | `false` |
+| `data-marquee-pause-on-focus` | `true` \| `false` | `false` |
+| `data-marquee-pause-button-enabled` | `true` \| `false` | `true` |
 | `data-marquee-respect-reduced-motion` | `true` \| `false` | `true` |
+
+`data-marquee-pause-button` goes on the button itself, not the wrapper — see
+[Pause Button](#pause-button).
 
 ---
 
 ## Accessibility
 
+The marquee is accessible by default in two ways, and accepts one piece of markup from you for the
+third. Full reasoning, edge cases and audit notes live in **[docs/accessibility.md](docs/accessibility.md)**.
+
+| Behaviour | Default | Needs markup from you |
+|---|---|---|
+| Honors `prefers-reduced-motion` | on | no |
+| Clones excluded from the a11y tree and tab order | always | no |
+| Pause button bound, when present | on | **yes** |
+| Pause on hover / on focus | off | no |
+
 ### Reduced Motion
 
-By default the marquee honors the operating system's reduced-motion setting. While
-`(prefers-reduced-motion: reduce)` matches, the marquee:
+While `(prefers-reduced-motion: reduce)` matches, the marquee freezes at its start position and the
+container becomes natively scrollable so the content stays reachable. Drag is dropped, `isPaused()`
+reports `true`, and the preference is watched live. The container's inline overflow is recorded and
+restored verbatim afterwards.
 
-- stops advancing and resets to its start position
-- sets `overflow-x: auto` on the **container** (or `overflow-y` for `ttb` / `btt`) so the content
-  stays reachable by native scrolling
-- kills the drag interaction, if `draggable` was enabled
-- reports `isPaused() === true`, and ignores `resume()` — the preference outranks it, so nothing
-  moves until the preference itself changes
+```typescript
+initMarquee({ respectReducedMotion: false }); // animate regardless
+```
 
-The scroll affordance matters: a frozen marquee that still clips its overflow would hide every item
-past the container edge with no way to reach them. Native scrolling replaces the animation as the
-mechanism for getting to that content — which is also why drag is dropped rather than kept. Drag
-and native scroll compete for the same gesture on the same axis, and on touch they fight outright,
-so the one that guarantees reachability wins.
+→ [Details, opt-out forms, and two `gsap.matchMedia()` caveats](docs/accessibility.md#reduced-motion)
 
-This is the only style the library writes on an element you own. Whatever inline `overflow-x` /
-`overflow-y` the container already had is recorded and restored verbatim when the preference turns
-off or the instance is destroyed. Nothing else on the container is read or written — including its
-scroll offsets, which are only ever reset on the axis the library itself made scrollable.
+### Pause Button
 
-On platforms with classic scrollbars (Windows), the scrollbar appearing can shift the layout around
-the marquee. Reserve the space if that matters to you:
+Reduced motion covers [WCAG 2.2.2](https://www.w3.org/WAI/WCAG22/Understanding/pause-stop-hide.html)
+conformance, but it lives in an OS setting most people never find. The button is the part a reader
+can see and press. **You supply it; the library binds it and ships no CSS for it.**
+
+Put a real `<button>` inside the container, as a **sibling of the track** — the wrapper is cloned,
+so a button inside the track would be duplicated into every clone:
+
+```html
+<div class="marquee-container">
+  <div class="marquee-track">
+    <div data-marquee class="marquee-wrapper">
+      <div data-marquee-item>Item 1</div>
+    </div>
+  </div>
+
+  <button type="button" data-marquee-pause-button>
+    <span data-when="running">Pause</span>
+    <span data-when="paused">Play</span>
+  </button>
+</div>
+```
+
+The library mirrors state onto it as `data-marquee-paused="true" | "false"` — never your content —
+so you swap the label yourself:
 
 ```css
-.marquee-container {
-  scrollbar-gutter: stable;
+[data-marquee-pause-button] [data-when='paused'],
+[data-marquee-pause-button][data-marquee-paused='true'] [data-when='running'] {
+  display: none;
+}
+
+[data-marquee-pause-button][data-marquee-paused='true'] [data-when='paused'] {
+  display: revert;
 }
 ```
 
-The preference is watched live, not read once: flipping it at the OS level freezes or resumes an
-already-running marquee.
+With no button in the container the library warns. Opt out with `pauseButton: false`, or point it at
+your own selector with `pauseButtonSelector`.
 
-To animate regardless of the preference, opt out:
+→ [Why `data-marquee-paused` and not `aria-pressed`, how a press outranks hover and focus, and what
+happens under reduced motion](docs/accessibility.md#the-pause-button)
+
+### Pause on Focus
+
+`pauseOnFocus` is the keyboard counterpart to `pauseOnHover`: while focus sits inside the container
+the marquee holds still, so a reader tabbing through its links is not chasing a moving target. Both
+stay `false` by default — neither gets you 2.2.2 on its own, since neither helps a touch user.
 
 ```typescript
-// Per instance
-const marquee = await createMarquee('#my-marquee', { respectReducedMotion: false });
-
-// Or for every marquee on the page
-initMarquee({ respectReducedMotion: false });
+initMarquee({ pauseOnFocus: true });
 ```
 
-```html
-<!-- Or per element, with initMarquee() -->
-<div data-marquee data-marquee-respect-reduced-motion="false">…</div>
-```
-
-> `respectReducedMotion: false` opts out of **honoring** the preference, not out of detecting it.
-> Setting it to `false` means "animate anyway", so use it only where motion is essential to what
-> the content communicates.
-
-Browsers that cannot report the preference at all animate normally, as does any environment without
-`window.matchMedia`.
-
-#### Known limitations
-
-The live watching runs on `gsap.matchMedia()`, which brings two GSAP behaviors with it. Neither is
-specific to this library — they affect every `gsap.matchMedia()` consumer — but both are worth
-knowing about.
-
-**Two preference changes less than 2ms apart: the second is dropped.** GSAP coalesces media-change
-events into one pass every 2ms, shared across every `gsap.matchMedia()` user on the page. That coalescing is what keeps
-one preference change from being processed once per registered query, but it cannot tell duplicate
-events apart from two genuinely different values. When the second value is dropped, GSAP's record of
-the preference does not advance either, so the marquee can stay out of sync with the real setting
-until the next media change anywhere on the page resynchronizes it.
-
-In practice this is a testing concern, not a user-facing one: the first change after page load is
-always applied, and nobody can toggle an OS setting twice within 2ms. What *can* is an automated
-suite driving the preference through something like Playwright's `emulateMediaFeatures()`. **If you
-assert reduced-motion behavior in tests, leave more than 2ms between flips** — otherwise a pass or a
-failure may be measuring the dropped event rather than the marquee.
-
-**The native media-query listener outlives `destroy()`.** `destroy()` releases the
-`gsap.matchMedia()` context, but GSAP never calls `removeListener` on the underlying
-`MediaQueryList`, and exposes no API to do it. The destroyed instance is still garbage-collectible —
-GSAP's handler is a module-level function holding no per-instance state — but the native listener
-count grows across mount/unmount cycles in SPA-style usage.
+→ [Details and limits](docs/accessibility.md#pause-on-focus)
 
 ### Clones and the Accessibility Tree
 
-The marquee fills the track by cloning its wrapper. Every clone gets `aria-hidden="true"`, and every
-focusable element inside it gets `tabindex="-1"` — otherwise a screen reader would announce each item
-several times over, and every cloned link would become a duplicate tab stop.
+Every clone gets `aria-hidden="true"` and its focusable children get `tabindex="-1"`, so anything
+focusable inside a marquee is reachable by keyboard and assistive technology **exactly once**.
+Clones stay clickable.
 
-Both go on every clone the marquee creates, independent of `respectReducedMotion` and of the motion
-preference. **Anything focusable inside a marquee is reachable by keyboard and by assistive
-technology exactly once**, in the original wrapper. Clones stay fully clickable, so a reader can
-activate whichever copy of a link happens to be under the pointer.
-
-That last part is why `inert` is not used, despite covering both exclusions in a single attribute.
-`inert` also blocks hit-testing, and the track only ever translates by one period — so the original
-wrapper occupies at most its own width of the container, and most of what the reader sees at any
-moment is a clone. Under `inert` the majority of a marquee's links would silently stop responding to
-clicks, which reads as a broken site rather than a library limitation. `aria-hidden` and `tabindex`
-also work in every browser, where `inert` needs Chrome 102+, Safari 15.5+ or Firefox 112+ to do
-anything at all.
-
-The tradeoff this leaves: a pointer can still move focus into an `aria-hidden` subtree, so an
-accessibility audit will flag `aria-hidden-focus` as needs-review rather than passing clean. Mouse
-users who click a cloned link navigate immediately, and keyboard and screen-reader users never reach
-one, so the flag is expected here.
+→ [Why not `inert`, and the one audit flag to expect](docs/accessibility.md#clones-and-the-accessibility-tree)
 
 ---
 
@@ -568,8 +557,14 @@ Select the **Wrapper** div, open **Element Settings → Custom Attributes**, and
 | `data-marquee-speed` | e.g. `2` |
 | `data-marquee-draggable` | `true` or `false` |
 | `data-marquee-pause-on-hover` | `true` or `false` |
+| `data-marquee-pause-on-focus` | `true` or `false` |
 
 Only `data-marquee` is required. The others are optional and fall back to defaults.
+
+Then add the pause button: place a **Button** inside the **Container**, as a sibling of the track
+(not inside the wrapper — that div gets cloned), and give it the custom attribute
+`data-marquee-pause-button` with an empty value. Without one, the library logs a warning; see
+[Pause Button](#pause-button).
 
 ### 3 — CSS (Horizontal)
 
@@ -690,6 +685,9 @@ separate shim files instead of inline `data:` URLs.
 | `direction` | `'ltr' \| 'rtl' \| 'ttb' \| 'btt'` | `'ltr'` | Scroll direction |
 | `draggable` | `boolean` | `false` | Enable drag/touch interaction |
 | `pauseOnHover` | `boolean` | `false` | Pause animation on hover |
+| `pauseOnFocus` | `boolean` | `false` | Pause while focus is inside the container — see [Pause on Focus](#pause-on-focus) |
+| `pauseButton` | `boolean` | `true` | Bind a pause button from the container, and warn when none is there — see [Pause Button](#pause-button) |
+| `pauseButtonSelector` | `string` | `'[data-marquee-pause-button]'` | Selector for the pause button, resolved against the container |
 | `dragEase` | `number` | `0.5` | Drag easing duration in seconds |
 | `respectReducedMotion` | `boolean` | `true` | Honor `prefers-reduced-motion` — see [Reduced Motion](#reduced-motion) |
 
@@ -704,15 +702,17 @@ Additional options for `initMarquee()`:
 | `speedAttribute` | `string` | `'data-marquee-speed'` | Attribute name for speed |
 | `draggableAttribute` | `string` | `'data-marquee-draggable'` | Attribute name for draggable |
 | `pauseOnHoverAttribute` | `string` | `'data-marquee-pause-on-hover'` | Attribute name for pauseOnHover |
+| `pauseOnFocusAttribute` | `string` | `'data-marquee-pause-on-focus'` | Attribute name for pauseOnFocus |
+| `pauseButtonAttribute` | `string` | `'data-marquee-pause-button-enabled'` | Attribute name for pauseButton |
 | `respectReducedMotionAttribute` | `string` | `'data-marquee-respect-reduced-motion'` | Attribute name for respectReducedMotion |
 
 ### `Marquee` Instance Methods
 
 | Method | Return | Description |
 |--------|--------|-------------|
-| `pause()` | `void` | Pause the animation |
-| `resume()` | `void` | Resume the animation — no effect while reduced motion is active, see [Reduced Motion](#reduced-motion) |
-| `isPaused()` | `boolean` | Check if paused — also `true` while reduced motion is active |
+| `pause()` | `void` | Pause deliberately — hover and focus cannot lift it, see [Explicit intent](docs/accessibility.md#explicit-intent-outranks-hover-and-focus) |
+| `resume()` | `void` | Resume deliberately — outranks a hover or focus pause until the pointer leaves and focus moves out; no effect while reduced motion is active, see [Reduced Motion](#reduced-motion) |
+| `isPaused()` | `boolean` | Check if paused — `true` for an explicit, hover, or focus pause, and while reduced motion is active |
 | `isReady()` | `boolean` | True after images loaded and init complete |
 | `setSpeed(speed)` | `void` | Update scroll speed |
 | `getSpeed()` | `number` | Get current speed |

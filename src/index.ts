@@ -18,12 +18,20 @@ const DEFAULT_CONFIG: Required<MarqueeConfig> = {
   draggable: false,
   dragEase: 0.5,
   pauseOnHover: false,
+  pauseOnFocus: false,
+  pauseButton: true,
+  // Not stripped from the options below: unlike wrapperSelector, this one is
+  // resolved per instance against that marquee's own container, so it is the
+  // Marquee's job rather than this function's. See issue #66, edge case 1.
+  pauseButtonSelector: '[data-marquee-pause-button]',
   respectReducedMotion: true,
   wrapperSelector: '[data-marquee]',
   directionAttribute: 'data-marquee-direction',
   speedAttribute: 'data-marquee-speed',
   draggableAttribute: 'data-marquee-draggable',
   pauseOnHoverAttribute: 'data-marquee-pause-on-hover',
+  pauseOnFocusAttribute: 'data-marquee-pause-on-focus',
+  pauseButtonAttribute: 'data-marquee-pause-button-enabled',
   respectReducedMotionAttribute: 'data-marquee-respect-reduced-motion',
 };
 
@@ -54,6 +62,8 @@ export function initMarquee(config: MarqueeConfig = {}): Marquee[] {
     speedAttribute,
     draggableAttribute,
     pauseOnHoverAttribute,
+    pauseOnFocusAttribute,
+    pauseButtonAttribute,
     respectReducedMotionAttribute,
     ...defaultOptions
   } = mergedConfig;
@@ -72,6 +82,8 @@ export function initMarquee(config: MarqueeConfig = {}): Marquee[] {
     const elementSpeed = wrapper.getAttribute(speedAttribute);
     const elementDraggable = wrapper.getAttribute(draggableAttribute);
     const elementPauseOnHover = wrapper.getAttribute(pauseOnHoverAttribute);
+    const elementPauseOnFocus = wrapper.getAttribute(pauseOnFocusAttribute);
+    const elementPauseButton = wrapper.getAttribute(pauseButtonAttribute);
     const elementRespectReducedMotion = wrapper.getAttribute(
       respectReducedMotionAttribute,
     );
@@ -88,6 +100,14 @@ export function initMarquee(config: MarqueeConfig = {}): Marquee[] {
         elementPauseOnHover !== null
           ? elementPauseOnHover !== 'false'
           : defaultOptions.pauseOnHover,
+      pauseOnFocus:
+        elementPauseOnFocus !== null
+          ? elementPauseOnFocus !== 'false'
+          : defaultOptions.pauseOnFocus,
+      pauseButton:
+        elementPauseButton !== null
+          ? elementPauseButton !== 'false'
+          : defaultOptions.pauseButton,
       respectReducedMotion:
         elementRespectReducedMotion !== null
           ? elementRespectReducedMotion !== 'false'
