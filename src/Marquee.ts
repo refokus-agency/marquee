@@ -12,6 +12,9 @@ import {
 
 gsap.registerPlugin(Observer);
 
+/** Drag distance (px) beyond which the trailing click is suppressed. */
+const DRAG_CLICK_THRESHOLD_PX = 5;
+
 const DEFAULT_OPTIONS: Required<MarqueeOptions> = {
   speed: 1,
   direction: 'ltr',
@@ -217,6 +220,8 @@ export class Marquee {
   private tickerCallback: ((time: number, deltaTime: number) => void) | null =
     null;
   private observer: Observer | null = null;
+  private dragDistance = 0;
+  private removeDragGuards: (() => void) | null = null;
   private resizeHandler: (() => void) | null = null;
   private boundMouseEnter: (() => void) | null = null;
   private boundMouseLeave: (() => void) | null = null;
@@ -521,16 +526,41 @@ export class Marquee {
       this.observer.kill();
       this.observer = null;
     }
+
+    this.removeDragGuards?.();
+    this.removeDragGuards = null;
   }
 
   private setupDragInteraction(): void {
     if (!this.options.draggable || this.observer) return;
 
     const vertical = this.isVertical();
+
+    // Native image/link drag-and-drop would fight the Observer drag.
+    const onDragStart = (e: Event) => e.preventDefault();
+    // A drag released over a link must not navigate.
+    const onClick = (e: Event) => {
+      if (this.dragDistance > DRAG_CLICK_THRESHOLD_PX) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+      this.dragDistance = 0;
+    };
+    this.track.addEventListener('dragstart', onDragStart);
+    this.track.addEventListener('click', onClick, true);
+    this.removeDragGuards = () => {
+      this.track.removeEventListener('dragstart', onDragStart);
+      this.track.removeEventListener('click', onClick, true);
+    };
+
     this.observer = Observer.create({
       target: this.track,
       type: 'pointer,touch',
+      onPress: () => {
+        this.dragDistance = 0;
+      },
       onDrag: (self) => {
+        this.dragDistance += Math.abs(vertical ? self.deltaY : self.deltaX);
         if (!this.moveTo) return;
         this.position += vertical ? self.deltaY : self.deltaX;
         this.moveTo(this.position);
