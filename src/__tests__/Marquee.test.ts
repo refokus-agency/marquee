@@ -180,6 +180,10 @@ function advanceGlobalTimeline(seconds: number): void {
  * for, and leaving it out would have every fixture-based test trip the
  * missing-button warning.
  */
+function makeContentStatic(wrapper: HTMLElement): void {
+  wrapper.innerHTML = '<span data-marquee-item>One</span>';
+}
+
 function buildFixture(): MarqueeFixture {
   document.body.innerHTML = `
     <div class="container">
@@ -498,6 +502,93 @@ describe('Marquee - Reduced Motion', () => {
     expect(container.style.overflowX).toBe('clip');
 
     marquee.destroy();
+  });
+
+  it('should make the frozen container focusable and restore it on exit', async () => {
+    const media = installMatchMedia(true);
+    const { container, wrapper } = buildFixture();
+    makeContentStatic(wrapper);
+
+    const marquee = new Marquee(wrapper);
+    await marquee.ready;
+
+    expect(container.getAttribute('tabindex')).toBe('0');
+    // No accessible name, so no region role.
+    expect(container.hasAttribute('role')).toBe(false);
+
+    await media.flip(false);
+
+    expect(container.hasAttribute('tabindex')).toBe(false);
+
+    marquee.destroy();
+  });
+
+  it('should add role=region only when the container is already labelled', async () => {
+    const media = installMatchMedia(true);
+    const { container, wrapper } = buildFixture();
+    makeContentStatic(wrapper);
+    container.setAttribute('aria-label', 'Partner logos');
+
+    const marquee = new Marquee(wrapper);
+    await marquee.ready;
+
+    expect(container.getAttribute('role')).toBe('region');
+
+    await media.flip(false);
+
+    expect(container.hasAttribute('role')).toBe(false);
+    expect(container.getAttribute('aria-label')).toBe('Partner logos');
+
+    marquee.destroy();
+  });
+
+  it('should leave an integrator tabindex and role untouched', async () => {
+    installMatchMedia(true);
+    const { container, wrapper } = buildFixture();
+    makeContentStatic(wrapper);
+    container.setAttribute('aria-label', 'Logos');
+    container.setAttribute('tabindex', '-1');
+    container.setAttribute('role', 'group');
+
+    const marquee = new Marquee(wrapper);
+    await marquee.ready;
+
+    expect(container.getAttribute('tabindex')).toBe('-1');
+    expect(container.getAttribute('role')).toBe('group');
+
+    marquee.destroy();
+
+    expect(container.getAttribute('tabindex')).toBe('-1');
+    expect(container.getAttribute('role')).toBe('group');
+  });
+
+  it('should not add a tab stop when the content is already focusable', async () => {
+    installMatchMedia(true);
+    const { container, wrapper } = buildFixture();
+    const link = document.createElement('a');
+    link.href = '#';
+    wrapper.appendChild(link);
+
+    const marquee = new Marquee(wrapper);
+    await marquee.ready;
+
+    expect(container.hasAttribute('tabindex')).toBe(false);
+
+    marquee.destroy();
+  });
+
+  it('should restore the container attributes on destroy', async () => {
+    installMatchMedia(true);
+    const { container, wrapper } = buildFixture();
+    makeContentStatic(wrapper);
+
+    const marquee = new Marquee(wrapper);
+    await marquee.ready;
+    expect(container.getAttribute('tabindex')).toBe('0');
+
+    marquee.destroy();
+
+    expect(container.hasAttribute('tabindex')).toBe(false);
   });
 
   it('should clear the overflow declaration when none was set inline', async () => {

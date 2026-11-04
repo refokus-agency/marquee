@@ -460,8 +460,9 @@ third. Full reasoning, edge cases and audit notes live in **[docs/accessibility.
 
 While `(prefers-reduced-motion: reduce)` matches, the marquee freezes at its start position and the
 container becomes natively scrollable so the content stays reachable. Drag is dropped, `isPaused()`
-reports `true`, and the preference is watched live. The container's inline overflow is recorded and
-restored verbatim afterwards.
+reports `true`, and the preference is watched live. With no focusable content inside, the container also becomes a keyboard
+focus stop (`tabindex="0"`, plus `role="region"` when it is already labelled). The container's
+inline overflow, `tabindex` and `role` are recorded and restored verbatim afterwards.
 
 ```typescript
 initMarquee({ respectReducedMotion: false }); // animate regardless

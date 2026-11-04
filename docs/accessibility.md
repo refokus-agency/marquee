@@ -52,10 +52,21 @@ mechanism for getting to that content — which is also why drag is dropped rath
 and native scroll compete for the same gesture on the same axis, and on touch they fight outright,
 so the one that guarantees reachability wins.
 
-This is the only style the library writes on an element you own. Whatever inline `overflow-x` /
-`overflow-y` the container already had is recorded and restored verbatim when the preference turns
-off or the instance is destroyed. Nothing else on the container is read or written — including its
-scroll offsets, which are only ever reset on the axis the library itself made scrollable.
+Keyboard users need to be able to focus a scroll container to scroll it, and not every browser does
+that by default (Safari). So when the marquee holds no focusable content, the container also gets:
+
+- `tabindex="0"`, unless you already set a `tabindex`
+- `role="region"`, only if the container already has an `aria-label` / `aria-labelledby` and no
+  `role` — an unnamed region is worse than none, so give the container a label to get it
+
+If the marquee contains links or buttons, nothing is added: tabbing to them already scrolls the
+content into view, and a container stop would just be a redundant tab stop.
+
+These are the only things the library writes on an element you own. Whatever inline `overflow-x` /
+`overflow-y`, `tabindex` and `role` the container already had is recorded and restored verbatim when
+the preference turns off or the instance is destroyed. Nothing else on the container is read or
+written — including its scroll offsets, which are only ever reset on the axis the library itself made
+scrollable.
 
 On platforms with classic scrollbars (Windows), the scrollbar appearing can shift the layout around
 the marquee. Reserve the space if that matters to you:
