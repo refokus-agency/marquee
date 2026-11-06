@@ -8,6 +8,19 @@ updates:
       time: "09:00"
     open-pull-requests-limit: 5
     groups:
+      # vitest and its @vitest/* siblings pin each other with exact peer
+      # ranges, so they must bump together (including majors) or the lockfile
+      # fails to install with ERESOLVE. This group has no update-types so it
+      # catches majors, and it must stay ABOVE minor-and-patch: a dependency
+      # joins the first group it matches.
+      # The @vitest/* glob alone does not match scoped packages, so list every
+      # direct @vitest/* devDependency by exact name when adding a new one.
+      vitest:
+        patterns:
+          - "vitest"
+          - "@vitest/coverage-v8"
+          - "@vitest/ui"
+          - "@vitest/*"
       minor-and-patch:
         update-types:
           - "minor"
