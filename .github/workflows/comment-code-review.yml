@@ -7,9 +7,9 @@
 # Both halves pinned — pr-ci.yml explains why in full. `platform-ref` drives a SECOND checkout
 # of platform (here, the guard script behind "Verify review outcome") and defaults to `main`.
 #
-# Secrets mapped explicitly rather than inherited: this job needs one and never touches the
-# package registry. Cost of the narrow map — if the org configures CLAUDE_CODE_OAUTH_TOKEN
-# instead, nothing is forwarded and the job skips; the fix is one more line here.
+# Secrets mapped explicitly rather than inherited: this job only needs the Anthropic
+# credential and never touches the package registry. Both ANTHROPIC_API_KEY and
+# CLAUDE_CODE_OAUTH_TOKEN are forwarded; either one is enough, and with neither the job skips.
 #
 # `id-token: write` is required on EVERY run, and not for the Anthropic credential: the
 # reusable passes no `github_token`, so claude-code-action falls through to core.getIDToken()
@@ -45,3 +45,4 @@ jobs:
       platform-ref: v1.12.1
     secrets:
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
