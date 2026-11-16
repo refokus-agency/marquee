@@ -37,13 +37,17 @@ export interface MatchMediaStub {
  * Replaces `window.matchMedia` with a stub that understands the
  * `prefers-reduced-motion` feature and can be flipped at runtime.
  *
- * Listeners live in the returned closure rather than on the individual
- * MediaQueryList objects, because GSAP re-creates a list on every change to
- * re-read `matches` while only ever registering its listener on the first one.
+ * Each MediaQueryList owns its listeners, as in a browser: GSAP registers one
+ * module-global handler on every context's list and, since 3.15.1, removes it
+ * from that list on `kill()`. A pooled registry would let one marquee's
+ * `destroy()` silently unsubscribe every other marquee on the page. A flip
+ * notifies every list that has listeners, because GSAP re-creates a list on
+ * every change to re-read `matches` but only listens on the first one.
  */
 export function installMatchMedia(initialReduce = false): MatchMediaStub {
   let reduce = initialReduce;
-  const listeners = new Set<(event: MediaQueryListEvent) => void>();
+  type Listener = (event: MediaQueryListEvent) => void;
+  const lists = new Set<Set<Listener>>();
 
   const evaluate = (query: string): boolean => {
     if (query.includes(REDUCE_FEATURE)) return reduce;
@@ -52,28 +56,25 @@ export function installMatchMedia(initialReduce = false): MatchMediaStub {
   };
 
   const createList = (query: string): MediaQueryList => {
+    const listeners = new Set<Listener>();
+    lists.add(listeners);
+
     const list = {
       media: query,
       matches: evaluate(query),
       onchange: null,
       // GSAP prefers the legacy addListener when present, so both are wired to
       // the same registry.
-      addListener: (fn: (event: MediaQueryListEvent) => void) => {
+      addListener: (fn: Listener) => {
         listeners.add(fn);
       },
-      removeListener: (fn: (event: MediaQueryListEvent) => void) => {
+      removeListener: (fn: Listener) => {
         listeners.delete(fn);
       },
-      addEventListener: (
-        _type: string,
-        fn: (event: MediaQueryListEvent) => void,
-      ) => {
+      addEventListener: (_type: string, fn: Listener) => {
         listeners.add(fn);
       },
-      removeEventListener: (
-        _type: string,
-        fn: (event: MediaQueryListEvent) => void,
-      ) => {
+      removeEventListener: (_type: string, fn: Listener) => {
         listeners.delete(fn);
       },
       dispatchEvent: () => true,
@@ -96,7 +97,9 @@ export function installMatchMedia(initialReduce = false): MatchMediaStub {
         media: `(${REDUCE_FEATURE})`,
       } as MediaQueryListEvent;
 
-      listeners.forEach((fn) => fn(event));
+      lists.forEach((listeners) => {
+        listeners.forEach((fn) => fn(event));
+      });
     },
 
     async flip(next: boolean): Promise<void> {
