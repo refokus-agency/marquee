@@ -77,51 +77,6 @@ The marquee requires a **3-level structure**:
 `data-marquee-pause-button-enabled="false"` (opts out of the button and its
 warning). `data-marquee-pause-button` goes on the button, not the wrapper.
 
-## Build/Lint/Test Commands
-
-| Command             | Description                 |
-| ------------------- | --------------------------- |
-| `pnpm build`        | Compile TypeScript to dist/ |
-| `pnpm build:clean`  | Clean dist/ and rebuild     |
-| `pnpm test`         | Run all tests (Vitest)      |
-| `pnpm lint`         | Biome lint with auto-fix    |
-| `pnpm format`       | Format code with Biome      |
-| `pnpm typecheck`    | TypeScript type checking    |
-| `pnpm commit`       | Conventional commit wizard  |
-
-### Running a Single Test
-
-```bash
-pnpm exec vitest run src/__tests__/index.test.ts  # specific file
-pnpm exec vitest run -t "should export"           # by pattern
-pnpm exec vitest src/__tests__/index.test.ts      # watch mode
-```
-
-**Requirements**: Node.js >= 22.0.0, GSAP >= 3.12.0 (peer dependency)
-
-## Code Style
-
-**Biome** handles both linting and formatting. Config lives in `biome.json`.
-
-### Formatting (Biome)
-
-- 2 spaces indentation (no tabs)
-- Single quotes
-- Semicolons always required
-- Trailing commas everywhere
-- 80 character line width
-
-### Linting (Biome)
-
-The recommended preset is off (`linter.rules.preset: "none"`) — only the rules
-listed in `biome.json` run.
-
-- `suspicious/noConsole`: off — `console` is allowed
-- `suspicious/noExplicitAny`: off — `any` is allowed
-- `correctness/noUnusedVariables`: warn, prefix unused with `_`
-- `style/useConsistentArrayType`: simple array syntax (`string[]` not `Array<string>`)
-- `style/noNamespace` and `style/useAsConstAssertion`: errors
-
 ### TypeScript
 
 - Strict mode via `@total-typescript/tsconfig`
@@ -210,54 +165,6 @@ if (!wrapper) return null;
  */
 export async function initMarquee(config: MarqueeConfig = {}): Promise<Marquee[]> {
 ````
-
-## Test Patterns
-
-```typescript
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-
-describe('Marquee Exports', () => {
-  it('should export Marquee class', async () => {
-    const { Marquee } = await import('../index.ts');
-    expect(Marquee).toBeDefined();
-    expect(typeof Marquee.prototype.pause).toBe('function');
-    expect(typeof Marquee.prototype.isReady).toBe('function');
-    expect(typeof Marquee.create).toBe('function');
-  });
-});
-
-describe('Marquee - Async Factory Functions', () => {
-  it('initMarquee should return empty array when no elements', async () => {
-    const { initMarquee } = await import('../index.ts');
-    const instances = await initMarquee({ wrapperSelector: '.non-existent' });
-    expect(instances).toEqual([]);
-  });
-
-  it('createMarquee should return null for non-existent selector', async () => {
-    const { createMarquee } = await import('../index.ts');
-    const instance = await createMarquee('#non-existent');
-    expect(instance).toBeNull();
-  });
-});
-
-describe('Marquee - DOM Structure', () => {
-  it('should throw error when wrapper has no parent', async () => {
-    const { Marquee } = await import('../index.ts');
-    const wrapper = document.createElement('div');
-    expect(() => new Marquee(wrapper)).toThrow('must have a parent element');
-  });
-});
-```
-
-## Project Structure
-
-```
-src/
-├── index.ts          # Marquee class + factory functions + exports
-├── types.ts          # MarqueeOptions, MarqueeConfig, MarqueeDirection
-└── __tests__/
-    └── index.test.ts
-```
 
 ## Commits
 
